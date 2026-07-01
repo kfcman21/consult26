@@ -1,0 +1,14 @@
+{
+  "name": "consult26-interview-system",
+  "version": "1.0.0",
+  "description": "2026 School Consulting Interview Record System",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

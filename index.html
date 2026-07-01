@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 찾아가는 학교 컨설팅 - 심층면담 기록 시스템</title>
+  <meta name="description" content="네패스 코코아팹X서울대학교X팀모노리스와 함께하는 2026년 찾아가는 학교 컨설팅 심층면담 기록 시스템">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+  <!-- Dynamic Background Particles (CSS animated) -->
+  <div class="bg-decorations">
+    <div class="circle circle-1"></div>
+    <div class="circle circle-2"></div>
+    <div class="circle circle-3"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-icon">
+          <i data-lucide="award"></i>
+        </div>
+        <div class="logo-text">
+          <h1>학교 컨설팅</h1>
+          <span>심층면담 기록 시스템</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <ul>
+          <li><a href="#section-guide" class="nav-link active" data-target="section-guide"><i data-lucide="book-open"></i><span>작성 GUIDE</span></a></li>
+          <li><a href="#section-overview" class="nav-link" data-target="section-overview"><i data-lucide="info"></i><span>I. 운영 개요</span></a></li>
+          <li><a href="#section-infra" class="nav-link" data-target="section-infra"><i data-lucide="monitor"></i><span>II. 일반사항 & 인프라</span></a></li>
+          <li><a href="#section-goals" class="nav-link" data-target="section-goals"><i data-lucide="target"></i><span>III. 참여 목표</span></a></li>
+          <li><a href="#section-diagnosis" class="nav-link" data-target="section-diagnosis"><i data-lucide="activity"></i><span>IV. 역량 진단</span></a></li>
+          <li><a href="#section-modules" class="nav-link" data-target="section-modules"><i data-lucide="calendar"></i><span>V. 연수 기획</span></a></li>
+          <li><a href="#section-summary" class="nav-link" data-target="section-summary"><i data-lucide="file-text"></i><span>VI. 결과 요약</span></a></li>
+          <li><a href="#section-attachments" class="nav-link" data-target="section-attachments"><i data-lucide="image"></i><span>VII. 증빙 & 서명</span></a></li>
+        </ul>
+      </nav>
+
+      <!-- Real-time Status Panel -->
+      <div class="status-panel">
+        <div class="status-title"><i data-lucide="shield-alert"></i> <span>실시간 유효성 검사</span></div>
+        <div class="status-indicators">
+          <div class="indicator-item" id="val-required-modules">
+            <span class="ind-icon warning"><i data-lucide="circle-alert"></i></span>
+            <span class="ind-label">필수 모듈 (0,7)</span>
+          </div>
+          <div class="indicator-item" id="val-total-hours">
+            <span class="ind-icon error"><i data-lucide="circle-alert"></i></span>
+            <span class="ind-label">최소 12차시 충족</span>
+          </div>
+          <div class="indicator-item" id="val-limit-modules">
+            <span class="ind-icon success"><i data-lucide="circle-check"></i></span>
+            <span class="ind-label">선택 제한 (1,2,3)</span>
+          </div>
+          <div class="indicator-item" id="val-teacher-hours">
+            <span class="ind-icon success"><i data-lucide="circle-check"></i></span>
+            <span class="ind-label">교원 최소 차시</span>
+          </div>
+        </div>
+        <div class="autosave-status">
+          <i data-lucide="cloud-lightning"></i> <span id="autosave-text">데이터를 입력하면 자동 저장됩니다.</span>
+        </div>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="sidebar-footer">
+        <button id="theme-toggle-btn" class="btn-icon-text">
+          <i data-lucide="sun"></i> <span>테마 변경</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <header class="content-header">
+        <div class="header-meta">
+          <span class="badge">2026 찾아가는 학교 컨설팅</span>
+          <span class="partner-logos">네패스 코코아팹 X 서울대학교 X 팀모노리스</span>
+        </div>
+        <h2>심층면담 운영결과 기록지</h2>
+        <div class="system-actions">
+          <button id="btn-export-json" class="btn btn-outline"><i data-lucide="download"></i> JSON 내보내기</button>
+          <button id="btn-import-json" class="btn btn-outline"><i data-lucide="upload"></i> JSON 불러오기</button>
+          <input type="file" id="file-import" accept=".json" style="display:none;">
+          <button id="btn-print" class="btn btn-primary"><i data-lucide="printer"></i> 인쇄 / PDF 저장</button>
+          <button id="btn-reset" class="btn btn-danger"><i data-lucide="rotate-ccw"></i> 초기화</button>
+        </div>
+      </header>
+
+      <form id="consult-form" onsubmit="event.preventDefault();">
+        
+        <!-- SECTION: GUIDE & Self-Check -->
+        <section id="section-guide" class="content-section active-section">
+          <div class="section-card">
+            <div class="card-header">
+              <i data-lucide="book-open"></i>
+              <h3>심층면담 기록지 작성 및 운영 GUIDE</h3>
+            </div>
+            <div class="card-body">
+              <div class="guide-box">
+                <h4><i data-lucide="check-circle-2"></i> 심층면담 기록지 작성 및 운영 기본 수칙</h4>
+                <ol>
+                  <li><strong>작성 방법 :</strong> 연수 현장에서 본 양식에 수기로 작성한 후 데이터화를 진행하거나, 현장에서 노트북 등을 통해 바로 작성을 진행해 주시기 바랍니다.</li>
+                  <li><strong>필수 증빙 수집 :</strong> 향후 간식 제공 등의 증빙 자료로 활용해야 하므로, <em>심층면담 현장 사진 및 회의 참여자 서명부 수령</em>은 필수입니다.</li>
+                  <li><strong>학교 담당자 필수 안내 :</strong> 운영기관에서도 담당자에게 안내하였으나, 심층면담 현장에서 한번 더 안내해주시고, 전달 여부를 자가 점검 해주시기 바랍니다.</li>
+                  <li><strong>작성 후 제출 방법 :</strong> 참석자 서명부에 현장 사진 및 서명 취득 후, 본 서류 작성본과 함께 아래 메일로 제출해주세요.
+                    <br><span class="highlight">서류 제출처 : <a href="mailto:26schoolchange@kocoa.or.kr">26schoolchange@kocoa.or.kr</a></span>
+                  </li>
+                </ol>
+              </div>
+
+              <div class="checklist-box">
+                <h4><i data-lucide="clipboard-check"></i> [필수 안내] 학교 연수담당자 역할 사전 안내 및 동의 확인 (코디네이터 셀프 점검)</h4>
+                
+                <div class="checklist-items">
+                  <div class="checklist-item">
+                    <label class="checkbox-container">
+                      <input type="checkbox" name="chk_guide_1" id="chk_guide_1">
+                      <span class="checkmark"></span>
+                      <div class="chk-label-group">
+                        <span class="chk-title">사전/사후 자가진단 설문조사 운영 지원 역할</span>
+                        <p class="chk-desc">사전 자가진단 조사(심층면담 이전 및 이후) 80% 이상 참여를 위한 교내 전파 및 독려 지원, 연수 종료 후 사후 역량 향상도 평가를 위한 설문조사 교내 전파 및 독려 지원</p>
+                      </div>
+                    </label>
+                    <span class="status-badge" id="badge_guide_1">미확인</span>
+                  </div>
+
+                  <div class="checklist-item">
+                    <label class="checkbox-container">
+                      <input type="checkbox" name="chk_guide_2" id="chk_guide_2">
+                      <span class="checkmark"></span>
+                      <div class="chk-label-group">
+                        <span class="chk-title">연수 대상자(교사/직원) 정보 등록 처리 필수</span>
+                        <p class="chk-desc">연수 참여자 중 교사 및 직원 대상 이수처리(미처리 희망자 포함)를 위해 한국과학창의재단에서 진행하는 이수자 정보 등록 처리 절차 교내 전파 및 독려 지원 (※ 미등록자는 직무연수 이수처리 불가, 처리 기간 초과 시 별도 등록 방안 없음 안내)</p>
+                      </div>
+                    </label>
+                    <span class="status-badge" id="badge_guide_2">미확인</span>
+                  </div>
+
+                  <div class="checklist-item">
+                    <label class="checkbox-container">
+                      <input type="checkbox" name="chk_guide_3" id="chk_guide_3">
+                      <span class="checkmark"></span>
+                      <div class="chk-label-group">
+                        <span class="chk-title">연수 모듈(과목)별 참여자 집계 / 전달</span>
+                        <p class="chk-desc">간식, 식사 등 지원을 위해 사전에 해당 연수에 참여할 인원에 대한 참여자 명단 집계 및 운영기관 전달 필요 (※ 참여자 명단 기준 신청자로 집계되며, 학교의 공식 참여율은 신청자 수 대비 참여자(당일 참여자) 수로 집계됨)</p>
+                      </div>
+                    </label>
+                    <span class="status-badge" id="badge_guide_3">미확인</span>
+                  </div>
+
+                  <div class="checklist-item">
+                    <label class="checkbox-container">
+                      <input type="checkbox" name="chk_guide_4" id="chk_guide_4">
+                      <span class="checkmark"></span>
+                      <div class="chk-label-group">
+                        <span class="chk-title">참여 후기 수집 지원</span>
+                        <p class="chk-desc">연수 운영 중 또는 이후 연수 참여 후기 등에 대한 인터뷰 수집 지원 / 3명 이상 간단한 후기 (제목 1줄, 내용 100자 이내)</p>
+                      </div>
+                    </label>
+                    <span class="status-badge" id="badge_guide_4">미확인</span>
+                  </div>
+
+                  <div class="checklist-item">
+                    <label class="checkbox-container">
+                      <input type="checkbox" name="chk_guide_5" id="chk_guide_5">
+                      <span class="checkmark"></span>
+                      <div class="chk-label-group">
+                        <span class="chk-title">연수 후 학교 변화 모니터링 자문</span>
+                        <p class="chk-desc">학교컨설팅 사업 참여 이후 학교 내 변화 여부 및 활동에 대한 간단한 모니터링 서면 자문 시행 (예시: 수업 적용 사례, 학생 동아리 또는 교사 연구회 활동 사례 등)</p>
+                      </div>
+                    </label>
+                    <span class="status-badge" id="badge_guide_5">미확인</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION I: OPERATION OVERVIEW -->
+        <section id="section-overview" class="content-section">
+          <div class="section-card">
+            <div class="card-header">
+              <i data-lucide="info"></i>
+              <h3>I. 심층면담 운영 개요</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-grid grid-2">
+                <div class="form-group">
+                  <label for="interview_date">심층 면담 일시</label>
+                  <div class="input-icon-wrapper">
+                    <i data-lucide="calendar"></i>
+                    <input type="datetime-local" id="interview_date" name="interview_date">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="operator_contact">운영기관 지원 담당자</label>
+                  <div class="input-icon-wrapper">
+                    <i data-lucide="user-check"></i>
+                    <input type="text" id="operator_contact" name="operator_contact" placeholder="예: 네패스 홍길동 (010-XXXX-XXXX)">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group margin-top-lg">
+                <label>참여 코디네이터 목록</label>
+                <div class="form-grid grid-3">
+                  <div class="form-group">
+                    <label class="sub-label" for="coord_leader">리더 코디네이터</label>
+                    <input type="text" id="coord_leader" name="coord_leader" placeholder="성명 입력">
+                  </div>
+                  <div class="form-group">
+                    <label class="sub-label" for="coord_member1">코디네이터 1</label>
+                    <input type="text" id="coord_member1" name="coord_member1" placeholder="성명 입력">
+                  </div>
+                  <div class="form-group">
+                    <label class="sub-label" for="coord_member2">코디네이터 2</label>
+                    <input type="text" id="coord_member2" name="coord_member2" placeholder="성명 입력">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Teacher List Dynamic Table -->
+              <div class="table-container margin-top-lg">
+                <div class="table-header-group">
+                  <h4><i data-lucide="users"></i> 참여 교원 명단 <span class="required">* 필수 기재</span></h4>
+                  <button type="button" id="btn-add-teacher" class="btn btn-small btn-success"><i data-lucide="user-plus"></i> 교원 추가</button>
+                </div>
+                <table id="table-teachers">
+                  <thead>
+                    <tr>
+                      <th style="width: 60px;">번호</th>
+                      <th>성명 *</th>
+                      <th>직책 *</th>
+                      <th>담당 교과 *</th>
+                      <th style="width: 140px;">교육경력 *</th>
+                      <th>연락처 * (이메일/내선/휴대폰 등)</th>
+                      <th style="width: 80px;">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- JS will populate rows dynamically, initial 2 rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION II: SCHOOL INFRASTRUCTURE -->
+        <section id="section-infra" class="content-section">
+          <div class="section-card">
+            <div class="card-header">
+              <i data-lucide="monitor"></i>
+              <h3>II. 학교 일반사항 및 인프라 현황</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-grid grid-2">
+                <div class="form-group">
+                  <label for="school_name">학교명 *</label>
+                  <input type="text" id="school_name" name="school_name" placeholder="학교명 입력 (예: 신성초등학교)">
+                </div>
+                <div class="form-group">
+                  <label>권역</label>
+                  <div class="radio-group-horizontal">
+                    <label class="radio-container">
+                      <input type="radio" name="school_region" value="서울" checked>
+                      <span class="radiomark"></span> 서울
+                    </label>
+                    <label class="radio-container">
+                      <input type="radio" name="school_region" value="인천">
+                      <span class="radiomark"></span> 인천
+                    </label>
+                    <label class="radio-container">
+                      <input type="radio" name="school_region" value="강원">
+                      <span class="radiomark"></span> 강원
+                    </label>
+                    <label class="radio-container">
+                      <input type="radio" name="school_region" value="제주">
+                      <span class="radiomark"></span> 제주
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group margin-top-md">
+                <label for="school_address">소재지</label>
+                <input type="text" id="school_address" name="school_address" placeholder="상세 주소 입력">
+              </div>
+
+              <div class="form-grid grid-4 margin-top-md">
+                <div class="form-group">
+                  <label>학교급</label>
+                  <select id="school_level" name="school_level">
+                    <option value="초">초등학교</option>
+                    <option value="중">중학교</option>
+                    <option value="고">고등학교</option>
+                    <option value="특수">특수학교</option>
+                    <option value="기타">기타(각종)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>설립 구분</label>
+                  <select id="school_est_type" name="school_est_type">
+                    <option value="공립">공립</option>
+                    <option value="국립">국립</option>
+                    <option value="사립">사립</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>선도학교 유형</label>
+                  <select id="school_lead_type" name="school_lead_type">
+                    <option value="일반">일반</option>
+                    <option value="특목">특목</option>
+                    <option value="자율">자율</option>
+                    <option value="중점">중점</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>선도학교 여부</label>
+                  <div class="radio-group-horizontal" style="padding-top: 10px;">
+                    <label class="radio-container">
+                      <input type="radio" name="school_lead_status" value="유" checked>
+                      <span class="radiomark"></span> 유
+                    </label>
+                    <label class="radio-container">
+                      <input type="radio" name="school_lead_status" value="무">
+                      <span class="radiomark"></span> 무
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Statistics Grid -->
+              <div class="form-grid grid-4 margin-top-md">
+                <div class="form-group">
+                  <label for="count_teachers">교원 수</label>
+                  <input type="number" id="count_teachers" name="count_teachers" min="0" placeholder="명">
+                </div>
+                <div class="form-group">
+                  <label for="count_staff">교직원 수</label>
+                  <input type="number" id="count_staff" name="count_staff" min="0" placeholder="명">
+                </div>
+                <div class="form-group">
+                  <label for="count_classes">학급 수</label>
+                  <input type="number" id="count_classes" name="count_classes" min="0" placeholder="개">
+                </div>
+                <div class="form-group">
+                  <label for="count_students">학생 수</label>
+                  <input type="number" id="count_students" name="count_students" min="0" placeholder="명">
+                </div>
+              </div>
+
+              <!-- Device usage check boxes -->
+              <div class="form-group margin-top-lg">
+                <label>교사용 기기 유형 (중복 선택 가능)</label>
+                <div class="checkbox-group-grid">
+                  <label class="checkbox-container">
+                    <input type="checkbox" name="teacher_device" value="태블릿 PC">
+                    <span class="checkmark"></span> 태블릿 PC
+                  </label>
+                  <label class="checkbox-container">
+                    <input type="checkbox" name="teacher_device" value="노트북/데스크탑">
+                    <span class="checkmark"></span> 노트북/데스크탑
+                  </label>
+                  <label class="checkbox-container">
+                    <input type="checkbox" name="teacher_device" value="Mac/iOS">
+                    <span class="checkmark"></span> Mac/iOS
+                  </label>
+                  <label class="checkbox-container">
+                    <input type="checkbox" name="teacher_device" value="웨일북">
+                    <span class="checkmark"></span> 웨일북
+                  </label>
+                  <label class="checkbox-container inline-text-input">
+                    <input type="checkbox" name="teacher_device_etc_chk" id="teacher_device_etc_chk">
+                    <span class="checkmark"></span> 기타 :
+                    <input type="text" id="teacher_device_etc" name="teacher_device_etc" placeholder="직접 입력" disabled>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Student device ratio -->
+              <div class="form-group margin-top-md">
+                <label>학생 지급 기기 현황 (학생 1인당 보급 비율)</label>
+                <div class="radio-group-horizontal">
+                  <label class="radio-container">
+                    <input type="radio" name="student_device_ratio" value="100% 이상" checked>
+                    <span class="radiomark"></span> 100% 이상
+                  </label>
+                  <label class="radio-container">
+                    <input type="radio" name="student_device_ratio" value="80% 이상">
+                    <span class="radiomark"></span> 80% 이상
+                  </label>
+                  <label class="radio-container">
+                    <input type="radio" name="student_device_ratio" value="60% 이상">
+                    <span class="radiomark"></span> 60% 이상
+                  </label>
+                  <label class="radio-container">
+                    <input type="radio" name="student_device_ratio" value="40% 이상">
+                    <span class="radiomark"></span> 40% 이상
+                  </label>
+                  <label class="radio-container">
+                    <input type="radio" name="student_device_ratio" value="40% 미만">
+                    <span class="radiomark"></span> 40% 미만
+                  </label>
+                </div>
+              </div>
+
+              <!-- Tech difficulties -->
+              <div class="form-group margin-top-md">
+                <label>기술적 애로사항 (중복 선택 가능)</label>
+                <div class="checkbox-group-grid">
+                  <label class="checkbox-container">
+                    <input type="checkbox" name="tech_difficulty" value="기기 노후 및 잦은 고장">
+                    <span class="checkmark"></span> 기기 노후 및 잦은 고장
+                  </label>
+                  <label class="checkbox-container">
+                    <input type="checkbox" name="tech_difficulty" value="네트워크 인프라 불안정">
+                    <span class="checkmark"></span> 네트워크 인프라 불안정
+                  </label>
+                  <label class="checkbox-container">
+                    <input type="checkbox" name="tech_difficulty" value="관리 인력 부재">
+                    <span class="checkmark"></span> 관리 인력 부재
+                  </label>
+                  <label class="checkbox-container inline-text-input">
+                    <input type="checkbox" name="tech_difficulty_etc_chk" id="tech_difficulty_etc_chk">
+                    <span class="checkmark"></span> 기타 :
+                    <input type="text" id="tech_difficulty_etc" name="tech_difficulty_etc" placeholder="직접 입력" disabled>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-group margin-top-lg">
+                <label for="budget_status">디지털 교육 전환 관련 학교 예산 집행 현황</label>
+                <textarea id="budget_status" name="budget_status" rows="3" placeholder="예시) 디지털 교과서용 태블릿 구매 예산 확보 완료, 네트워킹 구축 예산 신청 중 등 상세 내용 기재"></textarea>
+              </div>
+
+              <div class="form-group margin-top-md">
+                <label for="infra_notes">기타 시설 및 인프라 관련 학교 특이사항</label>
+                <textarea id="infra_notes" name="infra_notes" rows="3" placeholder="기타 특이사항이나 애로사항 등 기재"></textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION III: PARTICIPATION GOALS -->
+        <section id="section-goals" class="content-section">
+          <div class="section-card">
+            <div class="card-header">
+              <i data-lucide="target"></i>
+              <h3>III. 연수 참여 목표 및 학교의 변화 방향</h3>
+            </div>
+            <div class="card-body">
+              <p class="section-instruction">(인터뷰 방향) 본 사업 종료 후, 지속해서 이어가고자 하는 학교의 목표 점검</p>
+              
+              <div class="form-group">
+                <label>참여 목표 및 변화 희망 방향 (중복 선택 가능)</label>
+                <div class="checkbox-list">
+                  <label class="checkbox-container card-like">
+                    <input type="checkbox" name="participation_goal" value="교내 교육공동체 중심의 활발한 연구 및 수업 나눔 활동">
+                    <span class="checkmark"></span>
+                    <div class="checkbox-label-text">
+                      <strong>교내 교육공동체 연구 활성화</strong>
+                      <span>교내 교육공동체 중심의 활발한 연구 및 수업 나눔 활동</span>
+                    </div>
+                  </label>
+                  
+                  <label class="checkbox-container card-like">
+                    <input type="checkbox" name="participation_goal" value="AI 디지털 교과서의 안정적 도입 및 맞춤형 에듀테크 수업 활성화">
+                    <span class="checkmark"></span>
+                    <div class="checkbox-label-text">
+                      <strong>AI 디지털 교과서 도입 & 에듀테크</strong>
+                      <span>AI 디지털 교과서의 안정적 도입 및 맞춤형 에듀테크 수업 활성화</span>
+                    </div>
+                  </label>
+
+                  <label class="checkbox-container card-like">
+                    <input type="checkbox" name="participation_goal" value="학생 대상 AI / 디지털 관련 동아리 운영 및 활성화">
+                    <span class="checkmark"></span>
+                    <div class="checkbox-label-text">
+                      <strong>학생 AI/디지털 동아리 운영</strong>
+                      <span>학생 대상 AI / 디지털 관련 동아리 운영 및 활성화</span>
+                    </div>
+                  </label>
+
+                  <label class="checkbox-container card-like">
+                    <input type="checkbox" name="participation_goal" value="디지털 교육 관련 연구대회 출품 및 선도학교/연구학교 운영 준비">
+                    <span class="checkmark"></span>
+                    <div class="checkbox-label-text">
+                      <strong>연구대회 & 선도/연구학교 준비</strong>
+                      <span>디지털 교육 관련 연구대회 출품 및 선도학교/연구학교 운영 준비</span>
+                    </div>
+                  </label>
+
+                  <label class="checkbox-container card-like inline-text-input">
+                    <input type="checkbox" name="participation_goal_etc_chk" id="participation_goal_etc_chk">
+                    <span class="checkmark"></span>
+                    <div class="checkbox-label-text" style="width: 100%;">
+                      <strong>기타 목표 직접 입력</strong>
+                      <input type="text" id="participation_goal_etc" name="participation_goal_etc" placeholder="여기에 입력하세요" disabled style="width: 100%; margin-top: 5px;">
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION IV: CAPACITY DIAGNOSIS -->
+        <section id="section-diagnosis" class="content-section">
+          <div class="section-card">
+            <div class="card-header">
+              <i data-lucide="activity"></i>
+              <h3>IV. 교직원 디지털 친화도 및 역량 진단</h3>
+            </div>
+            <div class="card-body">
+              <p class="section-instruction">(인터뷰 방향) 인터뷰 대상자가 대답할 수 있는 사항 안에서 작성, 정확한 정보로 인식하지 않는다고 표현</p>
+              
+              <div class="form-grid grid-2">
+                <div class="form-group selection-card-group">
+                  <label>구성원 디지털 활용 역량</label>
+                  <div class="radio-tile-group">
+                    <label class="radio-tile-container">
+                      <input type="radio" name="digital_capacity" value="상">
+                      <div class="radio-tile">
+                        <div class="tile-icon"><i data-lucide="trending-up"></i></div>
+                        <span class="tile-label">상</span>
+                      </div>
+                    </label>
+                    <label class="radio-tile-container">
+                      <input type="radio" name="digital_capacity" value="중" checked>
+                      <div class="radio-tile">
+                        <div class="tile-icon"><i data-lucide="minus"></i></div>
+                        <span class="tile-label">중</span>
+                      </div>
+                    </label>
+                    <label class="radio-tile-container">
+                      <input type="radio" name="digital_capacity" value="하">
+                      <div class="radio-tile">
+                        <div class="tile-icon"><i data-lucide="trending-down"></i></div>
+                        <span class="tile-label">하</span>
+                      </div>
+                    </label>
+                    <label class="radio-tile-container">
+                      <input type="radio" name="digital_capacity" value="편차 심함">
+                      <div class="radio-tile">
+                        <div class="tile-icon"><i data-lucide="split"></i></div>
+                        <span class="tile-label">편차 심함</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="form-group selection-card-group">
+                  <label>디지털 교육 혁신 반응</label>
+                  <div class="radio-tile-group">
+                    <label class="radio-tile-container">
+                      <input type="radio" name="digital_reaction" value="매우 긍정적 및 선도적" checked>
+                      <div class="radio-tile">
+                        <div class="tile-icon"><i data-lucide="smile"></i></div>
+                        <span class="tile-label">긍정/선도적</span>
+                      </div>
+                    </label>
+                    <label class="radio-tile-container">
+                      <input type="radio" name="digital_reaction" value="수용적이나 소극적">
+                      <div class="radio-tile">
+                        <div class="tile-icon"><i data-lucide="meh"></i></div>
+                        <span class="tile-label">수용/소극적</span>
+                      </div>
+                    </label>
+                    <label class="radio-tile-container">
+                      <input type="radio" name="digital_reaction" value="거부감 및 우려 존재">
+                      <div class="radio-tile">
+                        <div class="tile-icon"><i data-lucide="frown"></i></div>
+                        <span class="tile-label">거부/우려</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group margin-top-lg">
+                <label for="capacity_opinion">기타 디지털 친화도 및 개별 역량 관련 의견</label>
+                <textarea id="capacity_opinion" name="capacity_opinion" rows="4" placeholder="교직원들의 디지털 친화도, 역량 상의 애로사항이나 특징적인 코멘트를 기재하세요."></textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION V: TRAINING PLANNING -->
+        <section id="section-modules" class="content-section">
+          <div class="section-card">
+            <div class="card-header">
+              <i data-lucide="calendar"></i>
+              <h3>V. 희망 연수 일정 및 모듈 구성</h3>
+            </div>
+            <div class="card-body">
+              <p class="section-instruction">필수모듈(2차시) 및 선택 모듈(3개 모듈 이상) 총 12차시 이상 구성 필수</p>
+
+              <!-- ① 희망 모듈 선정 -->
+              <div class="module-selection-block">
+                <div class="block-title">
+                  <h4>① 희망 모듈 선정 및 차시 입력</h4>
+                  <span class="sub-desc">각 모듈별로 제공 여부를 선택하고 차시를 기재하십시오.</span>
+                </div>
+
+                <div class="modules-grid">
+                  <!-- Module 0 (Required) -->
+                  <div class="module-item-card required-module" data-module-id="0">
+                    <div class="module-meta">
+                      <span class="module-type-badge">필수모듈(1차시)</span>
+                      <span class="target-badge">교직원</span>
+                    </div>
+                    <h5>모듈0 우리 학교 알아보기</h5>
+                    <p class="module-desc"><strong>[방향성]</strong> 연수 시작 전, 학교의 AI·디지털 교육 현황과 구성원들의 실제 요구사항을 진단하여 맞춤형 전략을 세우는 단계</p>
+                    <div class="module-control">
+                      <label class="switch-container">
+                        <input type="checkbox" id="mod0_active" checked disabled>
+                        <span class="slider"></span>
+                      </label>
+                      <div class="hour-input-wrapper">
+                        <input type="number" id="mod0_hours" value="1" min="1" max="1" disabled> <span>차시</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Module 1 -->
+                  <div class="module-item-card" data-module-id="1">
+                    <div class="module-meta">
+                      <span class="module-type-badge select">선택모듈</span>
+                      <span class="target-badge leader">학교리더</span>
+                    </div>
+                    <h5>모듈1 학교 AI·디지털 리더 과정</h5>
+                    <p class="module-desc"><strong>[방향성]</strong> 관리자가 AI 기반의 학교 비전과 전략을 수립하고, 구성원들이 원활하게 변화를 수용할 수 있도록 조율하는 경영 역량 강화</p>
+                    <div class="module-control">
+                      <label class="switch-container">
+                        <input type="checkbox" id="mod1_active" onchange="toggleModuleHourInput(1)">
+                        <span class="slider"></span>
+                      </label>
+                      <div class="hour-input-wrapper">
+                        <input type="number" id="mod1_hours" value="0" min="0" max="12" disabled> <span>차시</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Module 2 -->
+                  <div class="module-item-card" data-module-id="2">
+                    <div class="module-meta">
+                      <span class="module-type-badge select">선택모듈</span>
+                      <span class="target-badge parent">학부모</span>
+                    </div>
+                    <h5>모듈2 수업 혁신을 위한 학부모의 이해</h5>
+                    <p class="module-desc"><strong>[방향성]</strong> 학부모가 AI·디지털 기반 교육의 변화를 긍정적으로 이해하고, 가정 내에서 자녀의 학습과 정서를 효과적으로 지원</p>
+                    <div class="module-control">
+                      <label class="switch-container">
+                        <input type="checkbox" id="mod2_active" onchange="toggleModuleHourInput(2)">
+                        <span class="slider"></span>
+                      </label>
+                      <div class="hour-input-wrapper">
+                        <input type="number" id="mod2_hours" value="0" min="0" max="12" disabled> <span>차시</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Module 3 -->
+                  <div class="module-item-card" data-module-id="3">
+                    <div class="module-meta">
+                      <span class="module-type-badge select">선택모듈</span>
+                      <span class="target-badge student">학생</span>
+                    </div>
+                    <h5>모듈3 학생 AI·디지털 기초 소양 교육</h5>
+                    <p class="module-desc"><strong>[방향성]</strong> 학생이 디지털 도구를 단순히 사용하는 것을 넘어, 리터러시와 윤리 의식을 갖춘 미래 인재로 성장할 수 있는 기초 역량 향상</p>
+                    <div class="module-control">
+                      <label class="switch-container">
+                        <input type="checkbox" id="mod3_active" onchange="toggleModuleHourInput(3)">
+                        <span class="slider"></span>
+                      </label>
+                      <div class="hour-input-wrapper">
+                        <input type="number" id="mod3_hours" value="0" min="0" max="12" disabled> <span>차시</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Module 4 -->
+                  <div class="module-item-card" data-module-id="4">
+                    <div class="module-meta">
+                      <span class="module-type-badge select">선택모듈</span>
+                      <span class="target-badge">교직원</span>
+                    </div>
+                    <h5>모듈4 AI·디지털 문제해결 실무 과정</h5>
+                    <p class="module-desc"><strong>[방향성]</strong> 학교 현장의 행정적 애로사항을 AI 도구로 해결하여, 교직원이 수업과 생활 지도에 더 집중할 수 있는 효율적인 업무 환경 조성</p>
+                    <div class="module-control">
+                      <label class="switch-container">
+                        <input type="checkbox" id="mod4_active" onchange="toggleModuleHourInput(4)">
+                        <span class="slider"></span>
+                      </label>
+                      <div class="hour-input-wrapper">
+                        <input type="number" id="mod4_hours" value="0" min="0" max="12" disabled> <span>차시</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Module 5 -->
+                  <div class="module-item-card" data-module-id="5">
+                    <div class="module-meta">
+                      <span class="module-type-badge select">선택모듈</span>
+                      <span class="target-badge teacher">교원</span>
+                    </div>
+                    <h5>모듈5 교과별 AI·디지털 수업 실천 과정</h5>
+                    <p class="module-desc"><strong>[방향성]</strong> 교과별 특성에 맞춰 AI 도구를 수업 설계와 평가에 융합함으로써, 학습자 맞춤형 수업을 실제 교실에서 구현할 수 있도록 지원</p>
+                    <div class="module-control">
+                      <label class="switch-container">
+                        <input type="checkbox" id="mod5_active" onchange="toggleModuleHourInput(5)">
+                        <span class="slider"></span>
+                      </label>
+                      <div class="hour-input-wrapper">
+                        <input type="number" id="mod5_hours" value="0" min="0" max="12" disabled> <span>차시</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Module 6 -->
+                  <div class="module-item-card" data-module-id="6">
+                    <div class="module-meta">
+                      <span class="module-type-badge select">선택모듈</span>
+                      <span class="target-badge teacher">교원</span>
+                    </div>
+                    <h5>모듈6 AI·디지털 수업 자율 주제 과정</h5>
+                    <p class="module-desc"><strong>[방향성]</strong> 학교가 희망하는 특정 교육 주제(IB, 프로젝트 수업, 진로 등)와 AI·디지털 기술을 결합하여 학교만의 차별화된 심화 교수 전략을 개발</p>
+                    <div class="module-control">
+                      <label class="switch-container">
+                        <input type="checkbox" id="mod6_active" onchange="toggleModuleHourInput(6)">
+                        <span class="slider"></span>
+                      </label>
+                      <div class="hour-input-wrapper">
+                        <input type="number" id="mod6_hours" value="0" min="0" max="12" disabled> <span>차시</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Module 7 (Required) -->
+                  <div class="module-item-card required-module" data-module-id="7">
+                    <div class="module-meta">
+                      <span class="module-type-badge">필수모듈(1차시)</span>
+                      <span class="target-badge">교직원</span>
+                    </div>
+                    <h5>모듈7 우리 학교 변화 돌아보기</h5>
+                    <p class="module-desc"><strong>[방향성]</strong> 연수 전체 과정을 복기하며 학교 구성원의 인식 변화를 확인하고, 교육과정의 지속적인 환류와 재설계가 이루어지는 문화 구축</p>
+                    <div class="module-control">
+                      <label class="switch-container">
+                        <input type="checkbox" id="mod7_active" checked disabled>
+                        <span class="slider"></span>
+                      </label>
+                      <div class="hour-input-wrapper">
+                        <input type="number" id="mod7_hours" value="1" min="1" max="1" disabled> <span>차시</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Rules Dashboard (Inside section) -->
+                <div class="rules-feedback-card">
+                  <h5><i data-lucide="shield-alert"></i> 모듈 구성 유효성 검사 상세 피드백</h5>
+                  <ul class="rules-feedback-list">
+                    <li id="rule-1" class="rule-error"><i data-lucide="circle-x"></i> <span>필수 모듈 포함: 모듈0과 모듈7이 각각 1차시씩 필수로 구성되어야 합니다.</span></li>
+                    <li id="rule-2" class="rule-error"><i data-lucide="circle-x"></i> <span>최소 총 차시 충족: 총 연수 차시의 합계가 12차시 이상이어야 합니다. (현재: <strong id="current-total-hours">2</strong>차시)</span></li>
+                    <li id="rule-3" class="rule-success"><i data-lucide="circle-check"></i> <span>선택모듈 차시 제한: 모듈1(리더), 모듈2(학부모), 모듈3(학생)의 합계 차시는 최대 5차시 이하여야 합니다. (현재: <strong id="current-limited-hours">0</strong>차시)</span></li>
+                    <li id="rule-4" class="rule-success"><i data-lucide="circle-check"></i> <span>교원 대상 연수 조건: 교원 대상 모듈(모듈5, 모듈6)은 각각 개설 시 최소 2차시 이상이어야 합니다. (※ 모듈별 최소 2차시 미만 개설 시 직무연수 이수 불가)</span></li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- ② 맞춤형 연수 기획 -->
+              <div class="custom-planning-block margin-top-lg">
+                <div class="table-header-group">
+                  <div class="block-title">
+                    <h4>② 맞춤형 연수 기획</h4>
+                    <span class="sub-desc">선택한 모듈을 기반으로 구체적인 연수 일정과 방법을 수립하세요.</span>
+                  </div>
+                  <button type="button" id="btn-add-plan" class="btn btn-small btn-success"><i data-lucide="plus"></i> 계획 행 추가</button>
+                </div>
+
+                <div class="table-container">
+                  <table id="table-planning">
+                    <thead>
+                      <tr>
+                        <th style="width: 140px;">모듈 구성</th>
+                        <th style="width: 90px;">차시 구성</th>
+                        <th style="width: 140px;">연수 일정</th>
+                        <th style="width: 120px;">연수 방법</th>
+                        <th>희망 주제 - 중점 도구</th>
+                        <th>희망 주제 - 운영 주제</th>
+                        <th>비고</th>
+                        <th style="width: 70px;">관리</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <!-- Dynamic Rows -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- ③ 기타 고려사항 -->
+              <div class="etc-considerations margin-top-lg">
+                <div class="block-title">
+                  <h4>③ 기타 고려사항</h4>
+                </div>
+                <div class="form-grid grid-2">
+                  <div class="form-group">
+                    <label for="consider_pre_level">선행 수준 확인</label>
+                    <textarea id="consider_pre_level" name="consider_pre_level" rows="3" placeholder="연수 전 교사들의 사전 지식이나 선행 경험 수준에 대한 내용을 기술해주세요."></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label for="consider_infra">인프라 환경 (인적/물적) 고려사항</label>
+                    <textarea id="consider_infra" name="consider_infra" rows="3" placeholder="인프라 상의 제약 요소나 준비되어야 할 기자재 및 지원 인력 사항을 적어주세요."></textarea>
+                  </div>
+                </div>
+                <div class="form-grid grid-2 margin-top-md">
+                  <div class="form-group">
+                    <label for="consider_school_req">학교 측 별도 요청사항</label>
+                    <textarea id="consider_school_req" name="consider_school_req" rows="3" placeholder="학교 측에서 특별히 요청한 교육 주제나 진행 방식 등에 대해 기술해주세요."></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label for="consider_etc">기타 확인 필요사항</label>
+                    <textarea id="consider_etc" name="consider_etc" rows="3" placeholder="그 외 사전 조율이 필요하거나 확인이 요구되는 사항을 입력하세요."></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION VI: INTERVIEW CORE SUMMARY -->
+        <section id="section-summary" class="content-section">
+          <div class="section-card">
+            <div class="card-header">
+              <i data-lucide="file-text"></i>
+              <h3>VI. 심층면담 결과 핵심 요약</h3>
+            </div>
+            <div class="card-body">
+              <p class="section-instruction">(작성 방향) 전체 면담 결과 분석, 논의 주요 사항 및 학교 목표, 방향성에 대한 코멘트</p>
+              
+              <div class="form-group">
+                <label for="sum_school_goal">면담 대상 학교의 연수 참여 목표</label>
+                <textarea id="sum_school_goal" name="sum_school_goal" rows="4" placeholder="면담을 통해 구체화된 학교의 컨설팅 참여 목적과 도달하려는 최종 목표를 상세히 정리해 주세요."></textarea>
+              </div>
+
+              <div class="form-group margin-top-lg">
+                <label for="sum_core_result">면담 핵심 결과</label>
+                <textarea id="sum_core_result" name="sum_core_result" rows="6" placeholder="심층 면담의 핵심적인 분석 결과, 합의 사항, 주요 쟁점 및 코디네이터 의견을 요약하여 작성하세요."></textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION VII: ATTACHMENTS & SIGNATURES -->
+        <section id="section-attachments" class="content-section">
+          <div class="section-card">
+            <div class="card-header">
+              <i data-lucide="image"></i>
+              <h3>VII. 증빙 자료 및 서명 관리</h3>
+            </div>
+            <div class="card-body">
+              <p class="section-instruction">심층면담 운영시 현장 사진 및 회의 참여자 서명부 수령 필수 (간식 제공 등 증빙 자료용)</p>
+              
+              <div class="form-grid grid-2">
+                <!-- Photo Upload Area -->
+                <div class="form-group">
+                  <label>현장 사진 등록</label>
+                  <div class="upload-dropzone" id="photo-dropzone">
+                    <i data-lucide="camera" class="upload-icon"></i>
+                    <p class="upload-text">사진을 드래그하여 놓거나 클릭하여 선택하세요</p>
+                    <input type="file" id="photo-input" accept="image/*" style="display:none;">
+                    <div id="photo-preview-container" class="preview-container hidden">
+                      <img id="photo-preview" src="" alt="현장 사진 미리보기">
+                      <button type="button" id="btn-remove-photo" class="btn-remove-preview"><i data-lucide="trash-2"></i></button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Coordinator Signature Area -->
+                <div class="form-group">
+                  <label>코디네이터 서명</label>
+                  <div class="signature-outer-box">
+                    <div class="signature-canvas-wrapper">
+                      <canvas id="signature-canvas" width="400" height="200"></canvas>
+                      <span class="canvas-placeholder" id="sig-placeholder">여기에 마우스나 터치로 서명하세요</span>
+                    </div>
+                    <div class="signature-controls">
+                      <button type="button" id="btn-clear-signature" class="btn btn-small btn-outline"><i data-lucide="eraser"></i> 서명 지우기</button>
+                      <button type="button" id="btn-lock-signature" class="btn btn-small btn-primary"><i data-lucide="lock"></i> 서명 완료</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </form>
+    </main>
+  </div>
+
+  <!-- Notification system -->
+  <div id="toast" class="toast hidden">
+    <i data-lucide="check-circle" id="toast-icon"></i>
+    <span id="toast-message">저장 완료!</span>
+  </div>
+
+  <!-- System JS -->
+  <script src="app.js"></script>
+</body>
+</html>
