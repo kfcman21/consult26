@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "firebase-tools": "^15.22.4",
     "vite": "^5.0.0"
   }
 }

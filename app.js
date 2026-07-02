@@ -721,11 +721,11 @@ function triggerAutosave() {
   saveToLocalStorage();
 }
 
-async function saveToLocalStorage() {
+function saveToLocalStorage() {
   if (!state.currentUser) return;
   updateStateFromDOM();
   
-  // 1. LocalStorage Backup (Always backup locally first)
+  // 1. LocalStorage Backup (Immediate & Sync)
   localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(state));
   
   const sharedSchoolData = (state.currentUser.role === 'school' && state.infra.school_name) ? {
@@ -738,19 +738,19 @@ async function saveToLocalStorage() {
     localStorage.setItem(`consult26_infra_${schoolNameClean}`, JSON.stringify(sharedSchoolData));
   }
 
-  // 2. Firebase Cloud Sync (Async)
+  // 2. Firebase Cloud Sync (Fire-and-forget, Non-blocking)
   if (isFirebaseEnabled && db) {
-    try {
-      const recordDocRef = doc(db, 'records', state.currentUser.id);
-      await setDoc(recordDocRef, state);
-      
-      if (sharedSchoolData) {
-        const schoolNameClean = state.infra.school_name.trim();
-        const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
-        await setDoc(sharedDocRef, sharedSchoolData);
-      }
-    } catch (err) {
-      console.warn("Firebase 클라우드 저장 실패 (오프라인 상태), 로컬스토리지에 백업 완료:", err);
+    const recordDocRef = doc(db, 'records', state.currentUser.id);
+    setDoc(recordDocRef, state).catch(err => {
+      console.warn("Firebase 클라우드 저장 거부/실패 (LocalStorage 백업 모드 가동 중):", err);
+    });
+    
+    if (sharedSchoolData) {
+      const schoolNameClean = state.infra.school_name.trim();
+      const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
+      setDoc(sharedDocRef, sharedSchoolData).catch(err => {
+        console.warn("Firebase 공유 데이터 저장 거부/실패:", err);
+      });
     }
   }
   
@@ -762,41 +762,21 @@ async function saveToLocalStorage() {
 async function loadFromLocalStorage() {
   if (!state.currentUser) return;
   
-  let loadedState = null;
-
-  // 1. Load from Firebase Firestore
-  if (isFirebaseEnabled && db) {
+  // 1. Restore from LocalStorage immediately to guarantee instant UI rendering
+  const data = localStorage.getItem(`consult26_record_${state.currentUser.id}`);
+  let localState = null;
+  if (data) {
     try {
-      const recordDocRef = doc(db, 'records', state.currentUser.id);
-      const docSnap = await getDoc(recordDocRef);
-      if (docSnap.exists()) {
-        loadedState = docSnap.data();
-        console.log("⚡ Firebase 클라우드에서 최신 데이터를 연동했습니다.");
-      }
-    } catch (err) {
-      console.warn("Firebase 데이터를 불러오지 못해 로컬 스토리지를 검색합니다:", err);
+      localState = JSON.parse(data);
+      applyStateToDOM(localState);
+      showToast(`${state.currentUser.name} 코디네이터님의 로컬 데이터를 복원했습니다.`, 'success');
+    } catch (e) {
+      console.error('LocalStorage parse error', e);
     }
   }
 
-  // 2. Fallback to LocalStorage
-  if (!loadedState) {
-    const data = localStorage.getItem(`consult26_record_${state.currentUser.id}`);
-    if (data) {
-      try {
-        loadedState = JSON.parse(data);
-        console.log("ℹ️ 로컬스토리지 백업에서 데이터를 복원했습니다.");
-      } catch (e) {
-        console.error('Failed to restore data from LocalStorage', e);
-      }
-    }
-  }
-
-  // 3. Apply state
-  if (loadedState) {
-    applyStateToDOM(loadedState);
-    showToast(`${state.currentUser.name} 코디네이터님의 최신 데이터를 불러왔습니다.`, 'success');
-  } else {
-    // Reset to defaults for new user
+  // 2. If no local data exists, setup default empty form
+  if (!localState) {
     applyStateToDOM({
       checklist: { chk_guide_1: false, chk_guide_2: false, chk_guide_3: false, chk_guide_4: false, chk_guide_5: false },
       overview: { interview_date: '', operator_contact: '', coord_leader: '', coord_member1: '', coord_member2: '' },
@@ -826,6 +806,23 @@ async function loadFromLocalStorage() {
     addTeacherRow();
     addPlanningRow({ moduleNum: 0, hours: 1 });
     addPlanningRow({ moduleNum: 7, hours: 1 });
+  }
+
+  // 3. Load from Firebase Cloud in the background
+  if (isFirebaseEnabled && db) {
+    try {
+      const recordDocRef = doc(db, 'records', state.currentUser.id);
+      const docSnap = await getDoc(recordDocRef);
+      if (docSnap.exists()) {
+        const cloudState = docSnap.data();
+        applyStateToDOM(cloudState);
+        // Sync local storage copy with the fresh cloud data
+        localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(cloudState));
+        showToast(`⚡ 최신 클라우드 서버 데이터로 동기화 완료했습니다.`, 'success');
+      }
+    } catch (err) {
+      console.warn("Firestore 규칙 미비 또는 권한 부족으로 클라우드 데이터를 가져오지 못했습니다. 로컬 저장을 계속 사용합니다:", err);
+    }
   }
 }
 
