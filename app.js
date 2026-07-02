@@ -1370,6 +1370,22 @@ function enableAllTabs() {
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     link.parentElement.classList.remove('hidden');
+    // Reset active tab class to guide tab
+    const target = link.getAttribute('data-target');
+    if (target === 'section-guide') {
+      link.classList.add('active');
+    } else {
+      link.classList.remove('active');
+    }
+  });
+
+  const sections = document.querySelectorAll('.content-section');
+  sections.forEach(sec => {
+    if (sec.id === 'section-guide') {
+      sec.classList.add('active-section');
+    } else {
+      sec.classList.remove('active-section');
+    }
   });
   
   // Show the upper info group inside section-overview
