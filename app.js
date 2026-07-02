@@ -266,16 +266,16 @@ function addTeacherRow(data = {}) {
   
   tr.innerHTML = `
     <td class="row-num text-center">${newRowIndex}</td>
-    <td><input type="text" class="teacher-name" value="${data.name || ''}" placeholder="성명"></td>
-    <td><input type="text" class="teacher-role" value="${data.role || ''}" placeholder="직책 (예: 교사, 부장)"></td>
-    <td><input type="text" class="teacher-subject" value="${data.subject || ''}" placeholder="담당교과"></td>
+    <td><input type="text" class="teacher-name" value="${escapeHtml(data.name)}" placeholder="성명"></td>
+    <td><input type="text" class="teacher-role" value="${escapeHtml(data.role)}" placeholder="직책 (예: 교사, 부장)"></td>
+    <td><input type="text" class="teacher-subject" value="${escapeHtml(data.subject)}" placeholder="담당교과"></td>
     <td>
       <div style="display:flex; align-items:center; gap:4px;">
-        <input type="number" class="teacher-career" value="${data.career || ''}" min="0" max="50" style="width: 70px;">
+        <input type="number" class="teacher-career" value="${escapeHtml(data.career)}" min="0" max="50" style="width: 70px;">
         <span>년차</span>
       </div>
     </td>
-    <td><input type="text" class="teacher-contact" value="${data.contact || ''}" placeholder="연락처 정보 기재"></td>
+    <td><input type="text" class="teacher-contact" value="${escapeHtml(data.contact)}" placeholder="연락처 정보 기재"></td>
     <td class="text-center">
       <button type="button" class="btn btn-small btn-danger btn-delete-row"><i data-lucide="trash-2"></i></button>
     </td>
@@ -330,7 +330,7 @@ function addPlanningRow(data = {}) {
         <span>차시</span>
       </div>
     </td>
-    <td><input type="datetime-local" class="plan-date" value="${data.date || ''}"></td>
+    <td><input type="datetime-local" class="plan-date" value="${escapeHtml(data.date)}"></td>
     <td>
       <select class="plan-method">
         <option value="강의/토론" ${data.method === '강의/토론' ? 'selected' : ''}>강의/토론</option>
@@ -339,9 +339,9 @@ function addPlanningRow(data = {}) {
         <option value="기타" ${data.method === '기타' ? 'selected' : ''}>기타</option>
       </select>
     </td>
-    <td><input type="text" class="plan-tool" value="${data.tool || ''}" placeholder="예: GEMINI, 패들렛 등"></td>
-    <td><input type="text" class="plan-topic" value="${data.topic || ''}" placeholder="세부 운영 내용"></td>
-    <td><input type="text" class="plan-note" value="${data.note || ''}" placeholder="비고"></td>
+    <td><input type="text" class="plan-tool" value="${escapeHtml(data.tool)}" placeholder="예: GEMINI, 패들렛 등"></td>
+    <td><input type="text" class="plan-topic" value="${escapeHtml(data.topic)}" placeholder="세부 운영 내용"></td>
+    <td><input type="text" class="plan-note" value="${escapeHtml(data.note)}" placeholder="비고"></td>
     <td class="text-center">
       <button type="button" class="btn btn-small btn-danger btn-delete-row"><i data-lucide="trash-2"></i></button>
     </td>
@@ -728,10 +728,11 @@ function triggerAutosave() {
 function saveToLocalStorage() {
   if (!state.currentUser) return;
   updateStateFromDOM();
-  
-  // 1. LocalStorage Backup (Immediate & Sync)
-  localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(state));
-  
+
+  // 1. LocalStorage Backup (Immediate & Sync) — never persist the account password.
+  const persistState = getSanitizedState();
+  localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(persistState));
+
   const schoolNameClean = state.infra.school_name ? state.infra.school_name.trim() : '';
   const sharedSchoolData = (state.currentUser.role === 'school' && schoolNameClean) ? {
     infra: state.infra,
@@ -745,7 +746,7 @@ function saveToLocalStorage() {
   // 2. Firebase Cloud Sync (Fire-and-forget, Non-blocking)
   if (isFirebaseEnabled && db) {
     const recordDocRef = doc(db, 'records', state.currentUser.id);
-    setDoc(recordDocRef, state).catch(err => {
+    setDoc(recordDocRef, persistState).catch(err => {
       console.warn("Firebase 클라우드 저장 거부/실패 (LocalStorage 백업 모드 가동 중):", err);
     });
     
@@ -977,8 +978,12 @@ function updateStateFromDOM() {
 
 // Restore form view from a given state object
 function applyStateToDOM(savedState) {
+  // Preserve the currently authenticated identity — imported/restored data must not
+  // overwrite who is logged in (and must not reintroduce a stored password).
+  const preservedUser = state.currentUser;
   state = { ...state, ...savedState };
-  
+  if (preservedUser) state.currentUser = preservedUser;
+
   document.body.className = state.theme;
   if (state.theme === 'light-theme') {
     themeToggleBtn.querySelector('span').textContent = '다크 모드';
@@ -1292,7 +1297,7 @@ async function initAuth() {
       await saveUserAccount({
         id: 'admin',
         name: '시스템 관리자',
-        pw: 'admin123',
+        pw: await hashPassword('admin123'),
         role: 'admin',
         date: new Date().toLocaleDateString(),
         approved: true
@@ -1302,7 +1307,7 @@ async function initAuth() {
       await saveUserAccount({
         id: 'school',
         name: '신성초 담당자',
-        pw: 'school123',
+        pw: await hashPassword('school123'),
         role: 'school',
         date: new Date().toLocaleDateString(),
         approved: true
@@ -1329,8 +1334,10 @@ async function initAuth() {
     const id = document.getElementById('login-id').value.trim();
     const pw = document.getElementById('login-pw').value;
 
+    const hashedPw = await hashPassword(pw);
     const freshUsers = await fetchAllUsers();
-    const matchedUser = freshUsers.find(u => u.id === id && u.pw === pw);
+    // Compare against the hash; fall back to plaintext for any legacy pre-hash accounts.
+    const matchedUser = freshUsers.find(u => u.id === id && (u.pw === hashedPw || u.pw === pw));
     if (matchedUser) {
       // Check if account has been approved by admin
       if (matchedUser.approved === false) {
@@ -1367,7 +1374,7 @@ async function initAuth() {
     const newUser = {
       id,
       name,
-      pw,
+      pw: await hashPassword(pw), // Never store the plaintext password
       role,
       date: new Date().toLocaleDateString(),
       approved: false // Newly registered users default to pending approval status
@@ -1714,22 +1721,23 @@ async function renderAdminUserManagement() {
       ? '<span class="status-badge complete">승인 완료</span>'
       : '<span class="status-badge" style="background:var(--warning-glow); color:var(--warning); border-color:rgba(245,158,11,0.15)">승인 대기</span>';
       
+    const safeId = escapeHtml(u.id);
     const approvalBtn = u.approved
-      ? `<button type="button" class="btn btn-small btn-outline btn-toggle-approval" data-user-id="${u.id}" ${u.id === 'admin' ? 'disabled' : ''}><i data-lucide="shield-alert"></i> 승인 취소</button>`
-      : `<button type="button" class="btn btn-small btn-success btn-toggle-approval" data-user-id="${u.id}"><i data-lucide="shield-check"></i> 승인하기</button>`;
-      
+      ? `<button type="button" class="btn btn-small btn-outline btn-toggle-approval" data-user-id="${safeId}" ${u.id === 'admin' ? 'disabled' : ''}><i data-lucide="shield-alert"></i> 승인 취소</button>`
+      : `<button type="button" class="btn btn-small btn-success btn-toggle-approval" data-user-id="${safeId}"><i data-lucide="shield-check"></i> 승인하기</button>`;
+
     tr.innerHTML = `
       <td>${index + 1}</td>
-      <td><strong>${u.id}</strong></td>
-      <td>${u.name}</td>
-      <td><span class="user-role-tag" style="background:${u.role === 'admin' ? 'var(--primary-glow)' : 'var(--secondary-glow)'}; color:${u.role === 'admin' ? 'var(--primary)' : 'var(--secondary)'}">${roleNames[u.role] || u.role}</span></td>
+      <td><strong>${safeId}</strong></td>
+      <td>${escapeHtml(u.name)}</td>
+      <td><span class="user-role-tag" style="background:${u.role === 'admin' ? 'var(--primary-glow)' : 'var(--secondary-glow)'}; color:${u.role === 'admin' ? 'var(--primary)' : 'var(--secondary)'}">${escapeHtml(roleNames[u.role] || u.role)}</span></td>
       <td>${statusBadge}</td>
-      <td>${u.date || '-'}</td>
+      <td>${escapeHtml(u.date) || '-'}</td>
       <td class="text-center">
         ${approvalBtn}
       </td>
       <td class="text-center">
-        <button type="button" class="btn btn-small btn-danger btn-delete-user" data-user-id="${u.id}" ${u.id === 'admin' ? 'disabled' : ''}><i data-lucide="user-x"></i> 삭제</button>
+        <button type="button" class="btn btn-small btn-danger btn-delete-user" data-user-id="${safeId}" ${u.id === 'admin' ? 'disabled' : ''}><i data-lucide="user-x"></i> 삭제</button>
       </td>
     `;
     
@@ -1759,32 +1767,33 @@ async function renderAdminUserManagement() {
 }
 
 async function toggleUserApproval(userId) {
-  let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
+  // Read from the same source the admin table renders from (cloud when enabled),
+  // so accounts registered on other devices can actually be approved.
+  const users = await fetchAllUsers();
   const user = users.find(u => u.id === userId);
-  if (user) {
-    user.approved = !user.approved;
-    localStorage.setItem('consult26_users', JSON.stringify(users));
-    
-    if (isFirebaseEnabled && db) {
-      try {
-        await setDoc(doc(db, 'users', userId), user);
-      } catch (err) {
-        console.warn("Firebase toggleUserApproval failed:", err);
-      }
-    }
-    
-    const message = user.approved ? `[${userId}] 계정의 가입 권한이 승인되었습니다.` : `[${userId}] 계정의 승인이 취소되었습니다.`;
-    showToast(message, 'success');
-    await renderAdminUserManagement();
+  if (!user) {
+    showToast('해당 계정을 찾을 수 없습니다. 목록을 새로고침해 주세요.', 'error');
+    return;
   }
+
+  user.approved = !user.approved;
+
+  if (isFirebaseEnabled && db) {
+    try {
+      await setDoc(doc(db, 'users', userId), user);
+    } catch (err) {
+      console.warn("Firebase toggleUserApproval failed:", err);
+    }
+  }
+  updateLocalUserCache(user);
+
+  const message = user.approved ? `[${userId}] 계정의 가입 권한이 승인되었습니다.` : `[${userId}] 계정의 승인이 취소되었습니다.`;
+  showToast(message, 'success');
+  await renderAdminUserManagement();
 }
 
 async function deleteUserAccount(userId) {
-  let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
-  users = users.filter(u => u.id !== userId);
-  localStorage.setItem('consult26_users', JSON.stringify(users));
-  localStorage.removeItem(`consult26_record_${userId}`);
-  
+  // Remove from cloud first so deletions propagate regardless of local cache state.
   if (isFirebaseEnabled && db) {
     try {
       await deleteDoc(doc(db, 'users', userId));
@@ -1793,9 +1802,68 @@ async function deleteUserAccount(userId) {
       console.warn("Firebase deleteUserAccount failed:", err);
     }
   }
-  
+
+  let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
+  users = users.filter(u => u.id !== userId);
+  localStorage.setItem('consult26_users', JSON.stringify(users));
+  localStorage.removeItem(`consult26_record_${userId}`);
+
   showToast(`계정 [ ${userId} ] 이 정상 삭제되었습니다.`, 'success');
   await renderAdminUserManagement();
+}
+
+// ==========================================
+// 🔐 SECURITY & UTILITY HELPERS
+// ==========================================
+
+// Expose module-scoped handler for inline onchange="toggleModuleHourInput(n)" in index.html.
+// (app.js is loaded as <script type="module">, so its functions are NOT global by default.)
+window.toggleModuleHourInput = toggleModuleHourInput;
+
+// Escape user-controlled text before inserting via innerHTML (prevents stored XSS).
+function escapeHtml(value) {
+  if (value === undefined || value === null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Hash a password with SHA-256 so plaintext is never stored/transmitted.
+// Falls back to plaintext only in insecure contexts where crypto.subtle is unavailable.
+async function hashPassword(pw) {
+  try {
+    const data = new TextEncoder().encode(pw);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    console.warn('crypto.subtle 사용 불가(비보안 컨텍스트). 평문으로 대체합니다.', e);
+    return pw;
+  }
+}
+
+// Build a persistence-safe copy of state (never store the account password in records).
+function getSanitizedState() {
+  const clone = { ...state };
+  if (clone.currentUser) {
+    const { pw, ...safeUser } = clone.currentUser;
+    clone.currentUser = safeUser;
+  }
+  return clone;
+}
+
+// Upsert a single user into the LocalStorage cache (keeps it in sync with cloud writes).
+function updateLocalUserCache(user) {
+  let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
+  const idx = users.findIndex(u => u.id === user.id);
+  if (idx >= 0) {
+    users[idx] = user;
+  } else {
+    users.push(user);
+  }
+  localStorage.setItem('consult26_users', JSON.stringify(users));
 }
 
 // Helper: Toast Notifications

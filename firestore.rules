@@ -2,23 +2,48 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 1. 회원 정보 (users) 컬렉션 보안
+    // ============================================================
+    // ⚠️  보안 한계 안내 (반드시 읽어주세요)
+    // ------------------------------------------------------------
+    // 이 프로젝트는 Firebase Authentication을 사용하지 않고
+    // 자체(커스텀) 로그인 방식을 사용합니다. 그래서 규칙에서
+    // request.auth 로 "누가 요청했는지"를 신뢰할 수 없습니다.
+    //
+    // 즉, records / shared_infra 는 여전히 문서 ID만 알면
+    // 누구나 읽고 쓸 수 있습니다. 완전한 보안(사용자별 접근 제어)을
+    // 위해서는 Firebase Authentication 도입이 필요합니다.
+    //   - 로그인: signInWithEmailAndPassword 등으로 전환
+    //   - 규칙: allow read, write: if request.auth.uid == recordId;
+    //
+    // 아래 규칙은 Auth 도입 전까지 적용 가능한 "최소 방어"입니다.
+    // (비밀번호는 클라이언트에서 SHA-256 해시로 저장되어, 목록이
+    //  노출되어도 평문 비밀번호는 유출되지 않습니다.)
+    // ============================================================
+
+    // 1. 회원 정보 (users)
     match /users/{userId} {
-      allow get, create: if true;
-      allow update, delete: if true; 
-      allow list: if true;
+      allow get, list: if true;
+
+      // 신규 계정은 스스로 관리자 권한을 부여할 수 없고, 반드시
+      // 승인 대기(approved=false) 상태로만 생성 가능. (기본 계정 admin/school 예외)
+      allow create: if (request.resource.data.role in ['user', 'school']
+                        && request.resource.data.approved == false)
+                     || userId in ['admin', 'school'];
+
+      // 관리자 승인/삭제 기능이 자체 로그인 기반이라 제한 불가 — Auth 도입 필요.
+      allow update, delete: if true;
     }
 
-    // 2. 코디네이터 면담지 데이터 (records) 컬렉션 보안
+    // 2. 코디네이터 면담지 데이터 (records)
     match /records/{recordId} {
       allow get, write: if true;
-      allow list: if false;
+      allow list: if false; // 전체 조회는 차단
     }
 
-    // 3. 학교 담당자 공유 데이터 (shared_infra) 컬렉션 보안
+    // 3. 학교 담당자 공유 데이터 (shared_infra)
     match /shared_infra/{schoolName} {
       allow get, write: if true;
-      allow list: if false;
+      allow list: if false; // 전체 조회는 차단
     }
   }
 }
