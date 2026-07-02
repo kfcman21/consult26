@@ -1,6 +1,6 @@
 // Application State Management
 let state = {
-  theme: 'dark-theme',
+  theme: 'light-theme',
   currentUser: null, // Stores { id, name, role } when authenticated
   checklist: {
     chk_guide_1: false,
