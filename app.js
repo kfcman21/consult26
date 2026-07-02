@@ -675,12 +675,7 @@ function initAutosave() {
 
 function triggerAutosave() {
   if (!state.currentUser) return; // Prevent autosaving when not logged in
-  document.getElementById('autosave-text').textContent = '입력 대기 중...';
-  
-  if (autosaveTimeout) clearTimeout(autosaveTimeout);
-  autosaveTimeout = setTimeout(() => {
-    saveToLocalStorage();
-  }, 2000);
+  saveToLocalStorage();
 }
 
 function saveToLocalStorage() {
