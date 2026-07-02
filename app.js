@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSignaturePad();
   initAutosave();
   initAuth(); // Setup login and signup logic
+  initSchoolSync(); // Bind school manager data remote sync button
 });
 
 // 1. Navigation Controller (Tabs)
@@ -688,6 +689,12 @@ function saveToLocalStorage() {
   // Key data by current logged-in user ID for separation
   localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(state));
   
+  // If role is school, save infra data in a shared school slot for coordinators to sync
+  if (state.currentUser.role === 'school' && state.infra.school_name) {
+    const schoolNameClean = state.infra.school_name.trim();
+    localStorage.setItem(`consult26_infra_${schoolNameClean}`, JSON.stringify(state.infra));
+  }
+  
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
   document.getElementById('autosave-text').textContent = `자동 저장됨: ${timeStr}`;
@@ -1252,18 +1259,34 @@ function authenticateUser(user, isSessionRestore = false) {
   
   // Set UI profiles labels
   userDisplayName.textContent = `${user.name} 코디네이터`;
-  userDisplayRole.textContent = user.role === 'admin' ? '시스템 관리자' : '일반 회원';
+  
+  const roleNames = {
+    admin: '시스템 관리자',
+    user: '일반 코디네이터',
+    school: '학교 담당자'
+  };
+  userDisplayRole.textContent = roleNames[user.role] || '일반 회원';
   
   // Reveal layout and hide overlay gateway
   appMainLayout.classList.remove('blur-content');
   authGateway.classList.add('hidden');
   
+  const syncBtn = document.getElementById('btn-sync-school-infra');
+  
   // Check authorization roles
   if (user.role === 'admin') {
     navAdminLi.classList.remove('hidden');
     renderAdminUserManagement();
+    enableAllTabs();
+    if (syncBtn) syncBtn.classList.remove('hidden');
+  } else if (user.role === 'school') {
+    navAdminLi.classList.add('hidden');
+    restrictTabsForSchool();
+    if (syncBtn) syncBtn.classList.add('hidden');
   } else {
     navAdminLi.classList.add('hidden');
+    enableAllTabs();
+    if (syncBtn) syncBtn.classList.remove('hidden');
   }
 
   // Load this user's specific records
@@ -1276,6 +1299,125 @@ function authenticateUser(user, isSessionRestore = false) {
       window.dispatchEvent(new Event('resize'));
     }
   }, 200);
+}
+
+// Helper: Restrict UI navigation for school managers
+function restrictTabsForSchool() {
+  const navLinks = document.querySelectorAll('.nav-link');
+  navLinks.forEach(link => {
+    const target = link.getAttribute('data-target');
+    if (target === 'section-infra') {
+      link.parentElement.classList.remove('hidden');
+      link.classList.add('active');
+    } else {
+      link.parentElement.classList.add('hidden');
+      link.classList.remove('active');
+    }
+  });
+
+  const sections = document.querySelectorAll('.content-section');
+  sections.forEach(sec => {
+    if (sec.id === 'section-infra') {
+      sec.classList.add('active-section');
+    } else {
+      sec.classList.remove('active-section');
+    }
+  });
+
+  // Hide system top buttons (export, import, print, reset)
+  const sysActions = document.querySelector('.system-actions');
+  if (sysActions) sysActions.classList.add('hidden');
+}
+
+// Helper: Restore UI navigation to full access
+function enableAllTabs() {
+  const navLinks = document.querySelectorAll('.nav-link');
+  navLinks.forEach(link => {
+    link.parentElement.classList.remove('hidden');
+  });
+  
+  // Restore top actions
+  const sysActions = document.querySelector('.system-actions');
+  if (sysActions) sysActions.classList.remove('hidden');
+}
+
+// Helper: School Manager remote infra data synchronization
+function initSchoolSync() {
+  const syncBtn = document.getElementById('btn-sync-school-infra');
+  if (!syncBtn) return;
+
+  syncBtn.addEventListener('click', () => {
+    const schoolNameInput = document.getElementById('school_name');
+    if (!schoolNameInput) return;
+
+    const schoolName = schoolNameInput.value.trim();
+    if (!schoolName) {
+      showToast('학교명을 먼저 입력해 주세요. (예: 신성초)', 'error');
+      return;
+    }
+
+    const sharedDataStr = localStorage.getItem(`consult26_infra_${schoolName}`);
+    if (sharedDataStr) {
+      try {
+        const parsedInfra = JSON.parse(sharedDataStr);
+        state.infra = { ...state.infra, ...parsedInfra };
+        
+        // Re-apply synced infra data to DOM
+        applyInfraToDOM(state.infra);
+        triggerAutosave();
+        
+        showToast(`[${schoolName}] 담당자가 작성한 최신 인프라 정보를 연동했습니다.`, 'success');
+      } catch (err) {
+        showToast('인프라 데이터를 불러오는 데 실패했습니다.', 'error');
+      }
+    } else {
+      showToast(`가입된 [${schoolName}] 담당자의 인프라 데이터가 없습니다. (학교 담당자 계정으로 로그인해 인프라 정보를 먼저 저장해야 합니다.)`, 'error');
+    }
+  });
+}
+
+// Helper: Bind Sync Infra data to input controls
+function applyInfraToDOM(infra) {
+  document.getElementById('school_name').value = infra.school_name || '';
+  
+  const regionRadio = document.querySelector(`input[name="school_region"][value="${infra.school_region}"]`);
+  if (regionRadio) regionRadio.checked = true;
+  
+  document.getElementById('school_address').value = infra.school_address || '';
+  document.getElementById('school_level').value = infra.school_level || '초';
+  document.getElementById('school_est_type').value = infra.school_est_type || '공립';
+  document.getElementById('school_lead_type').value = infra.school_lead_type || '일반';
+  
+  const leadRadio = document.querySelector(`input[name="school_lead_status"][value="${infra.school_lead_status}"]`);
+  if (leadRadio) leadRadio.checked = true;
+
+  document.getElementById('count_teachers').value = infra.count_teachers || '';
+  document.getElementById('count_staff').value = infra.count_staff || '';
+  document.getElementById('count_classes').value = infra.count_classes || '';
+  document.getElementById('count_students').value = infra.count_students || '';
+
+  // Checkboxes for teacher devices
+  document.querySelectorAll('input[name="teacher_device"]').forEach(cb => {
+    cb.checked = infra.teacher_devices.includes(cb.value);
+  });
+  document.getElementById('teacher_device_etc_chk').checked = !!infra.teacher_device_etc_chk;
+  document.getElementById('teacher_device_etc').value = infra.teacher_device_etc || '';
+  document.getElementById('teacher_device_etc').disabled = !infra.teacher_device_etc_chk;
+
+  // Student device ratio
+  const ratioRadio = document.querySelector(`input[name="student_device_ratio"][value="${infra.student_device_ratio}"]`);
+  if (ratioRadio) ratioRadio.checked = true;
+
+  // Technical difficulties
+  document.querySelectorAll('input[name="tech_difficulty"]').forEach(cb => {
+    cb.checked = infra.tech_difficulties.includes(cb.value);
+  });
+  document.getElementById('tech_difficulty_etc_chk').checked = !!infra.tech_difficulty_etc_chk;
+  document.getElementById('tech_difficulty_etc').value = infra.tech_difficulty_etc || '';
+  document.getElementById('tech_difficulty_etc').disabled = !infra.tech_difficulty_etc_chk;
+
+  document.getElementById('budget_status').value = infra.budget_status || '';
+  document.getElementById('infra_notes').value = infra.infra_notes || '';
 }
 
 // Render registered users in admin management table
