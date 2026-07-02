@@ -228,13 +228,13 @@ function initTheme() {
       document.body.classList.add('light-theme');
       state.theme = 'light-theme';
       themeToggleBtn.querySelector('span').textContent = '다크 모드';
-      themeToggleBtn.querySelector('i').setAttribute('data-lucide', 'moon');
+      swapIcon(themeToggleBtn, 'moon');
     } else {
       document.body.classList.remove('light-theme');
       document.body.classList.add('dark-theme');
       state.theme = 'dark-theme';
       themeToggleBtn.querySelector('span').textContent = '라이트 모드';
-      themeToggleBtn.querySelector('i').setAttribute('data-lucide', 'sun');
+      swapIcon(themeToggleBtn, 'sun');
     }
     if (window.lucide) window.lucide.createIcons();
     triggerAutosave();
@@ -438,10 +438,10 @@ function updateRuleIndicator(elementId, isSuccess) {
   if (!el) return;
   if (isSuccess) {
     el.className = 'rule-success';
-    el.querySelector('i').setAttribute('data-lucide', 'circle-check');
+    swapIcon(el, 'circle-check');
   } else {
     el.className = 'rule-error';
-    el.querySelector('i').setAttribute('data-lucide', 'circle-x');
+    swapIcon(el, 'circle-x');
   }
   if (window.lucide) window.lucide.createIcons();
 }
@@ -452,10 +452,10 @@ function updateSidebarIndicator(elementId, isSuccess) {
   const iconSpan = el.querySelector('.ind-icon');
   if (isSuccess) {
     iconSpan.className = 'ind-icon success';
-    iconSpan.querySelector('i').setAttribute('data-lucide', 'circle-check');
+    swapIcon(iconSpan, 'circle-check');
   } else {
     iconSpan.className = 'ind-icon error';
-    iconSpan.querySelector('i').setAttribute('data-lucide', 'circle-alert');
+    swapIcon(iconSpan, 'circle-alert');
   }
   if (window.lucide) window.lucide.createIcons();
 }
@@ -1003,10 +1003,10 @@ function applyStateToDOM(savedState) {
   document.body.className = state.theme;
   if (state.theme === 'light-theme') {
     themeToggleBtn.querySelector('span').textContent = '다크 모드';
-    themeToggleBtn.querySelector('i').setAttribute('data-lucide', 'moon');
+    swapIcon(themeToggleBtn, 'moon');
   } else {
     themeToggleBtn.querySelector('span').textContent = '라이트 모드';
-    themeToggleBtn.querySelector('i').setAttribute('data-lucide', 'sun');
+    swapIcon(themeToggleBtn, 'sun');
   }
 
   for (let i = 1; i <= 5; i++) {
@@ -1426,14 +1426,13 @@ async function initAuth() {
       e.preventDefault();
       const targetId = btn.getAttribute('data-target');
       const input = document.getElementById(targetId);
-      const icon = btn.querySelector('i');
-      
+
       if (input.type === 'password') {
         input.type = 'text';
-        icon.setAttribute('data-lucide', 'eye-off');
+        swapIcon(btn, 'eye-off');
       } else {
         input.type = 'password';
-        icon.setAttribute('data-lucide', 'eye');
+        swapIcon(btn, 'eye');
       }
       
       if (window.lucide) {
@@ -1921,6 +1920,21 @@ async function deleteUserAccount(userId) {
 // (app.js is loaded as <script type="module">, so its functions are NOT global by default.)
 window.toggleModuleHourInput = toggleModuleHourInput;
 
+// Robustly (re)set a Lucide icon inside a container.
+// Lucide replaces <i data-lucide="..."> with <svg>, so after the first render
+// container.querySelector('i') is null. Handle both <i> and <svg> to avoid crashes.
+function swapIcon(container, name) {
+  if (!container) return;
+  const cur = container.querySelector('i, svg');
+  const i = document.createElement('i');
+  i.setAttribute('data-lucide', name);
+  if (cur) {
+    cur.replaceWith(i);
+  } else {
+    container.appendChild(i);
+  }
+}
+
 // Escape user-controlled text before inserting via innerHTML (prevents stored XSS).
 function escapeHtml(value) {
   if (value === undefined || value === null) return '';
@@ -1973,10 +1987,10 @@ function showToast(message, type = 'success') {
   
   if (type === 'error') {
     toastEl.className = 'toast show error';
-    toastIcon.setAttribute('data-lucide', 'circle-x');
+    swapIcon(toastEl, 'circle-x');
   } else {
     toastEl.className = 'toast show';
-    toastIcon.setAttribute('data-lucide', 'check-circle');
+    swapIcon(toastEl, 'check-circle');
   }
   
   if (window.lucide) window.lucide.createIcons();
