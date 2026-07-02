@@ -1137,7 +1137,8 @@ function initAuth() {
         name: '시스템 관리자',
         pw: 'admin123',
         role: 'admin',
-        date: new Date().toLocaleDateString()
+        date: new Date().toLocaleDateString(),
+        approved: true
       });
     }
     if (!hasSchool) {
@@ -1146,7 +1147,8 @@ function initAuth() {
         name: '신성초 담당자',
         pw: 'school123',
         role: 'school',
-        date: new Date().toLocaleDateString()
+        date: new Date().toLocaleDateString(),
+        approved: true
       });
     }
     localStorage.setItem('consult26_users', JSON.stringify(users));
@@ -1173,6 +1175,11 @@ function initAuth() {
 
     const matchedUser = users.find(u => u.id === id && u.pw === pw);
     if (matchedUser) {
+      // Check if account has been approved by admin
+      if (matchedUser.approved === false) {
+        showToast('승인 대기 중인 계정입니다. 관리자의 승인이 완료된 후 로그인이 가능합니다.', 'error');
+        return;
+      }
       authenticateUser(matchedUser);
       showToast(`${matchedUser.name}님 환영합니다!`, 'success');
     } else {
@@ -1205,12 +1212,13 @@ function initAuth() {
       name,
       pw,
       role,
-      date: new Date().toLocaleDateString()
+      date: new Date().toLocaleDateString(),
+      approved: false // Newly registered users default to pending approval status
     };
     users.push(newUser);
     localStorage.setItem('consult26_users', JSON.stringify(users));
     
-    showToast('회원가입이 완료되었습니다! 로그인 해 주세요.', 'success');
+    showToast('회원가입 신청이 완료되었습니다! 관리자 승인 완료 후 이용 가능합니다.', 'success');
     
     // Switch to login
     signupForm.reset();
@@ -1443,14 +1451,38 @@ function renderAdminUserManagement() {
   
   const users = JSON.parse(localStorage.getItem('consult26_users')) || [];
   
+  const roleNames = {
+    admin: '관리자',
+    user: '일반 회원',
+    school: '학교 담당자'
+  };
+  
   users.forEach((u, index) => {
     const tr = document.createElement('tr');
+    
+    // Normalize approved field for older records
+    if (u.approved === undefined) {
+      u.approved = (u.id === 'admin' || u.id === 'school');
+    }
+    
+    const statusBadge = u.approved
+      ? '<span class="status-badge complete">승인 완료</span>'
+      : '<span class="status-badge" style="background:var(--warning-glow); color:var(--warning); border-color:rgba(245,158,11,0.15)">승인 대기</span>';
+      
+    const approvalBtn = u.approved
+      ? `<button type="button" class="btn btn-small btn-outline btn-toggle-approval" data-user-id="${u.id}" ${u.id === 'admin' ? 'disabled' : ''}><i data-lucide="shield-alert"></i> 승인 취소</button>`
+      : `<button type="button" class="btn btn-small btn-success btn-toggle-approval" data-user-id="${u.id}"><i data-lucide="shield-check"></i> 승인하기</button>`;
+      
     tr.innerHTML = `
       <td>${index + 1}</td>
       <td><strong>${u.id}</strong></td>
       <td>${u.name}</td>
-      <td><span class="user-role-tag" style="background:${u.role === 'admin' ? 'var(--primary-glow)' : 'var(--secondary-glow)'}; color:${u.role === 'admin' ? 'var(--primary)' : 'var(--secondary)'}">${u.role === 'admin' ? '관리자' : '일반'}</span></td>
+      <td><span class="user-role-tag" style="background:${u.role === 'admin' ? 'var(--primary-glow)' : 'var(--secondary-glow)'}; color:${u.role === 'admin' ? 'var(--primary)' : 'var(--secondary)'}">${roleNames[u.role] || u.role}</span></td>
+      <td>${statusBadge}</td>
       <td>${u.date || '-'}</td>
+      <td class="text-center">
+        ${approvalBtn}
+      </td>
       <td class="text-center">
         <button type="button" class="btn btn-small btn-danger btn-delete-user" data-user-id="${u.id}" ${u.id === 'admin' ? 'disabled' : ''}><i data-lucide="user-x"></i> 삭제</button>
       </td>
@@ -1467,10 +1499,31 @@ function renderAdminUserManagement() {
       });
     }
 
+    // Wire approval toggle event
+    const btnApprove = tr.querySelector('.btn-toggle-approval');
+    if (btnApprove && u.id !== 'admin') {
+      btnApprove.addEventListener('click', () => {
+        toggleUserApproval(u.id);
+      });
+    }
+
     tbody.appendChild(tr);
   });
   
   if (window.lucide) window.lucide.createIcons();
+}
+
+function toggleUserApproval(userId) {
+  let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
+  const user = users.find(u => u.id === userId);
+  if (user) {
+    user.approved = !user.approved;
+    localStorage.setItem('consult26_users', JSON.stringify(users));
+    
+    const message = user.approved ? `[${userId}] 계정의 가입 권한이 승인되었습니다.` : `[${userId}] 계정의 승인이 취소되었습니다.`;
+    showToast(message, 'success');
+    renderAdminUserManagement();
+  }
 }
 
 function deleteUserAccount(userId) {
