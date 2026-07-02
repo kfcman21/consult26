@@ -689,10 +689,14 @@ function saveToLocalStorage() {
   // Key data by current logged-in user ID for separation
   localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(state));
   
-  // If role is school, save infra data in a shared school slot for coordinators to sync
+  // If role is school, save infra and teachers data in a shared school slot for coordinators to sync
   if (state.currentUser.role === 'school' && state.infra.school_name) {
     const schoolNameClean = state.infra.school_name.trim();
-    localStorage.setItem(`consult26_infra_${schoolNameClean}`, JSON.stringify(state.infra));
+    const sharedSchoolData = {
+      infra: state.infra,
+      teachers: state.teachers
+    };
+    localStorage.setItem(`consult26_infra_${schoolNameClean}`, JSON.stringify(sharedSchoolData));
   }
   
   const now = new Date();
@@ -1329,9 +1333,14 @@ function restrictTabsForSchool() {
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     const target = link.getAttribute('data-target');
-    if (target === 'section-infra') {
+    // Allow both section-infra and section-overview
+    if (target === 'section-infra' || target === 'section-overview') {
       link.parentElement.classList.remove('hidden');
-      link.classList.add('active');
+      if (target === 'section-infra') {
+        link.classList.add('active');
+      } else {
+        link.classList.remove('active');
+      }
     } else {
       link.parentElement.classList.add('hidden');
       link.classList.remove('active');
@@ -1347,6 +1356,10 @@ function restrictTabsForSchool() {
     }
   });
 
+  // Hide the upper info group (date, coordinators etc.) inside section-overview
+  const infoGroup = document.getElementById('overview-info-group');
+  if (infoGroup) infoGroup.classList.add('hidden');
+
   // Hide system top buttons (export, import, print, reset)
   const sysActions = document.querySelector('.system-actions');
   if (sysActions) sysActions.classList.add('hidden');
@@ -1359,6 +1372,10 @@ function enableAllTabs() {
     link.parentElement.classList.remove('hidden');
   });
   
+  // Show the upper info group inside section-overview
+  const infoGroup = document.getElementById('overview-info-group');
+  if (infoGroup) infoGroup.classList.remove('hidden');
+
   // Restore top actions
   const sysActions = document.querySelector('.system-actions');
   if (sysActions) sysActions.classList.remove('hidden');
@@ -1382,21 +1399,44 @@ function initSchoolSync() {
     const sharedDataStr = localStorage.getItem(`consult26_infra_${schoolName}`);
     if (sharedDataStr) {
       try {
-        const parsedInfra = JSON.parse(sharedDataStr);
-        state.infra = { ...state.infra, ...parsedInfra };
+        const parsedData = JSON.parse(sharedDataStr);
         
-        // Re-apply synced infra data to DOM
-        applyInfraToDOM(state.infra);
+        if (parsedData.infra) {
+          // Object structure containing both infra & teachers
+          state.infra = { ...state.infra, ...parsedData.infra };
+          state.teachers = parsedData.teachers || [];
+          
+          applyInfraToDOM(state.infra);
+          applyTeachersToDOM(state.teachers);
+        } else {
+          // Fallback legacy structure containing only infra
+          state.infra = { ...state.infra, ...parsedData };
+          applyInfraToDOM(state.infra);
+        }
+        
         triggerAutosave();
-        
-        showToast(`[${schoolName}] 담당자가 작성한 최신 인프라 정보를 연동했습니다.`, 'success');
+        showToast(`[${schoolName}] 담당자가 작성한 인프라 및 참여 교원 정보를 연동했습니다.`, 'success');
       } catch (err) {
         showToast('인프라 데이터를 불러오는 데 실패했습니다.', 'error');
       }
     } else {
-      showToast(`가입된 [${schoolName}] 담당자의 인프라 데이터가 없습니다. (학교 담당자 계정으로 로그인해 인프라 정보를 먼저 저장해야 합니다.)`, 'error');
+      showToast(`가입된 [${schoolName}] 담당자의 인프라 데이터가 없습니다. (학교 담당자 계정으로 로그인해 정보를 먼저 저장해야 합니다.)`, 'error');
     }
   });
+}
+
+// Helper: Restore teachers table from synchronized state
+function applyTeachersToDOM(teachers) {
+  const tbody = document.querySelector('#table-teachers tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  
+  if (teachers && teachers.length > 0) {
+    teachers.forEach(t => addTeacherRow(t));
+  } else {
+    addTeacherRow();
+    addTeacherRow();
+  }
 }
 
 // Helper: Bind Sync Infra data to input controls
