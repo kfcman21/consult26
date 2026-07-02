@@ -1125,15 +1125,30 @@ btnPrint.addEventListener('click', () => {
 function initAuth() {
   // Pre-seed some default users in LocalStorage if not exists
   let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
-  if (users.length === 0) {
-    // Seed system admin account
-    users.push({
-      id: 'admin',
-      name: '시스템 관리자',
-      pw: 'admin123',
-      role: 'admin',
-      date: new Date().toLocaleDateString()
-    });
+  
+  // Ensure default accounts are seeded (Admin and School Manager)
+  const hasAdmin = users.some(u => u.id === 'admin');
+  const hasSchool = users.some(u => u.id === 'school');
+  
+  if (!hasAdmin || !hasSchool) {
+    if (!hasAdmin) {
+      users.push({
+        id: 'admin',
+        name: '시스템 관리자',
+        pw: 'admin123',
+        role: 'admin',
+        date: new Date().toLocaleDateString()
+      });
+    }
+    if (!hasSchool) {
+      users.push({
+        id: 'school',
+        name: '신성초 담당자',
+        pw: 'school123',
+        role: 'school',
+        date: new Date().toLocaleDateString()
+      });
+    }
     localStorage.setItem('consult26_users', JSON.stringify(users));
   }
 
