@@ -18,6 +18,66 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="dark-theme">
+  <!-- Authentication Gateway Overlay (Full screen overlay for login) -->
+  <div id="auth-gateway" class="auth-overlay">
+    <div class="auth-card glass-panel">
+      <div class="auth-header">
+        <div class="logo-icon big">
+          <i data-lucide="award"></i>
+        </div>
+        <h2>컨설팅 기록 시스템</h2>
+        <p>서비스 이용을 위해 로그인이 필요합니다.</p>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label for="login-id">아이디</label>
+          <div class="input-icon-wrapper">
+            <i data-lucide="user"></i>
+            <input type="text" id="login-id" required placeholder="아이디를 입력하세요">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="login-pw">비밀번호</label>
+          <div class="input-icon-wrapper">
+            <i data-lucide="lock"></i>
+            <input type="password" id="login-pw" required placeholder="비밀번호를 입력하세요">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full margin-top-md">로그인</button>
+        <p class="auth-switch-text">계정이 없으신가요? <a href="#" id="go-to-signup">회원가입</a></p>
+      </form>
+
+      <!-- Signup Form (Hidden by default) -->
+      <form id="signup-form" class="auth-form hidden">
+        <div class="form-grid grid-2">
+          <div class="form-group">
+            <label for="signup-id">아이디</label>
+            <input type="text" id="signup-id" required placeholder="아이디">
+          </div>
+          <div class="form-group">
+            <label for="signup-name">이름 (코디네이터명)</label>
+            <input type="text" id="signup-name" required placeholder="실명 입력">
+          </div>
+        </div>
+        <div class="form-group margin-top-sm">
+          <label for="signup-pw">비밀번호</label>
+          <input type="password" id="signup-pw" required placeholder="6자리 이상 비밀번호">
+        </div>
+        <div class="form-group margin-top-sm">
+          <label for="signup-role">가입 권한</label>
+          <select id="signup-role">
+            <option value="user">일반 코디네이터</option>
+            <option value="admin">시스템 관리자</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-success btn-full margin-top-md">가입하기</button>
+        <p class="auth-switch-text">이미 계정이 있으신가요? <a href="#" id="go-to-login">로그인</a></p>
+      </form>
+    </div>
+  </div>
+
   <!-- Dynamic Background Particles (CSS animated) -->
   <div class="bg-decorations">
     <div class="circle circle-1"></div>
@@ -25,7 +85,7 @@
     <div class="circle circle-3"></div>
   </div>
 
-  <div class="app-container">
+  <div class="app-container blur-content" id="app-main-layout">
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -38,6 +98,16 @@
         </div>
       </div>
 
+      <!-- User Profile Header -->
+      <div class="user-profile-badge">
+        <div class="avatar-icon"><i data-lucide="user-cog"></i></div>
+        <div class="profile-details">
+          <span id="user-display-name">홍길동 코디네이터</span>
+          <span id="user-display-role" class="user-role-tag">일반 회원</span>
+        </div>
+        <button id="btn-logout" title="로그아웃"><i data-lucide="log-out"></i></button>
+      </div>
+
       <nav class="sidebar-nav">
         <ul>
           <li><a href="#section-guide" class="nav-link active" data-target="section-guide"><i data-lucide="book-open"></i><span>작성 GUIDE</span></a></li>
@@ -48,6 +118,8 @@
           <li><a href="#section-modules" class="nav-link" data-target="section-modules"><i data-lucide="calendar"></i><span>V. 연수 기획</span></a></li>
           <li><a href="#section-summary" class="nav-link" data-target="section-summary"><i data-lucide="file-text"></i><span>VI. 결과 요약</span></a></li>
           <li><a href="#section-attachments" class="nav-link" data-target="section-attachments"><i data-lucide="image"></i><span>VII. 증빙 & 서명</span></a></li>
+          <!-- Admin Dashboard Tab (Hidden by default, visible to admin role) -->
+          <li id="nav-admin-li" class="hidden"><a href="#section-admin" class="nav-link" data-target="section-admin"><i data-lucide="settings"></i><span>🔧 회원 관리</span></a></li>
         </ul>
       </nav>
 
@@ -915,6 +987,37 @@
         </section>
 
       </form>
+
+      <!-- SECTION: ADMIN USER MANAGEMENT -->
+      <section id="section-admin" class="content-section">
+        <div class="section-card">
+          <div class="card-header">
+            <i data-lucide="settings"></i>
+            <h3>🔧 시스템 회원 관리 (관리자 전용)</h3>
+          </div>
+          <div class="card-body">
+            <p class="section-instruction">등록된 코디네이터 계정 목록을 관리하고 권한을 조정할 수 있습니다.</p>
+            
+            <div class="table-container margin-top-md">
+              <table id="table-users-admin">
+                <thead>
+                  <tr>
+                    <th style="width: 80px;">번호</th>
+                    <th>아이디</th>
+                    <th>이름</th>
+                    <th>가입 권한</th>
+                    <th>가입 일자</th>
+                    <th style="width: 120px;" class="text-center">계정 삭제</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Admin will see registered users here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
