@@ -7,12 +7,12 @@ import { getFirestore, doc, setDoc, getDoc, getDocs, collection, deleteDoc } fro
 // 💡 실제 클라우드 데이터 관리를 위해 아래 객체에 본인의 Firebase 프로젝트 Web App Config 값을 채워 넣어 주세요.
 // 💡 config 값을 채우지 않거나 기본값 상태일 경우, 기존의 브라우저 LocalStorage 백업 모드로 자동 전환(Fallback)되어 안전하게 작동합니다.
 const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
-  projectId: "YOUR_FIREBASE_PROJECT_ID",
-  storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
-  appId: "YOUR_FIREBASE_APP_ID"
+  apiKey: "AIzaSyCVuYFWyM_lP2jZxnETIUDuMkPR5P63dQM",
+  authDomain: "consult26-2bc69.firebaseapp.com",
+  projectId: "consult26-2bc69",
+  storageBucket: "consult26-2bc69.firebasestorage.app",
+  messagingSenderId: "827757418469",
+  appId: "1:827757418469:web:6a5d9b55224f8afdd1810c"
 };
 
 let db = null;
