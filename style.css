@@ -587,6 +587,7 @@ select:disabled {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .input-icon-wrapper i {
@@ -596,10 +597,38 @@ select:disabled {
   pointer-events: none;
   width: 18px;
   height: 18px;
+  z-index: 2;
 }
 
-.input-icon-wrapper input {
+.input-icon-wrapper input,
+.input-icon-wrapper select {
   padding-left: 44px;
+  width: 100%;
+}
+
+.input-icon-wrapper input[type="password"] {
+  padding-right: 44px;
+}
+
+.btn-toggle-pw {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  transition: color 0.2s;
+}
+
+.btn-toggle-pw:hover {
+  color: var(--primary);
 }
 
 /* Margin Helpers */

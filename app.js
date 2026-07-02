@@ -1211,6 +1211,28 @@ function initAuth() {
     showToast('로그아웃 되었습니다.', 'success');
   });
 
+  // Password Visibility Toggle Logic
+  document.querySelectorAll('.btn-toggle-pw').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetId = btn.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      const icon = btn.querySelector('i');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        input.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
+      }
+      
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    });
+  });
+
   // Check existing session on load
   const activeSession = sessionStorage.getItem('consult26_session');
   if (activeSession) {
