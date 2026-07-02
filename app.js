@@ -737,7 +737,8 @@ function saveToLocalStorage() {
   const sharedSchoolData = (state.currentUser.role === 'school' && schoolNameClean) ? {
     infra: state.infra,
     teachers: state.teachers,
-    goals: state.goals
+    goals: state.goals,
+    planning: state.planning
   } : null;
 
   if (sharedSchoolData) {
@@ -850,7 +851,8 @@ async function loadFromLocalStorage() {
             const sharedSchoolData = (localState.currentUser.role === 'school' && schoolNameClean) ? {
               infra: localState.infra,
               teachers: localState.teachers,
-              goals: localState.goals
+              goals: localState.goals,
+              planning: localState.planning
             } : null;
             if (sharedSchoolData) {
               const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
@@ -1494,8 +1496,8 @@ function restrictTabsForSchool() {
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     const target = link.getAttribute('data-target');
-    // School manager may edit: 개요(교원명단)/인프라/연수 참여 목표
-    if (target === 'section-infra' || target === 'section-overview' || target === 'section-goals') {
+    // School manager may edit: 개요(교원명단)/인프라/연수 참여 목표/맞춤형 연수 기획
+    if (target === 'section-infra' || target === 'section-overview' || target === 'section-goals' || target === 'section-modules') {
       link.parentElement.classList.remove('hidden');
       if (target === 'section-infra') {
         link.classList.add('active');
@@ -1528,6 +1530,11 @@ function restrictTabsForSchool() {
   // Show School Manager explicit Save action button box
   const schoolSaveBox = document.getElementById('school-save-box');
   if (schoolSaveBox) schoolSaveBox.classList.remove('hidden');
+
+  // 연수 기획 섹션: 학교 담당자에게는 '② 맞춤형 연수 기획' 표만 노출
+  // (모듈 선정/유효성 검사/기타 고려사항은 코디네이터 영역이므로 숨김)
+  document.querySelectorAll('#section-modules .module-selection-block, #section-modules .etc-considerations, #section-modules .section-instruction')
+    .forEach(el => el.classList.add('hidden'));
 }
 
 // Helper: Restore UI navigation to full access
@@ -1564,6 +1571,10 @@ function enableAllTabs() {
   // Hide School Manager explicit Save action button box from coordinators
   const schoolSaveBox = document.getElementById('school-save-box');
   if (schoolSaveBox) schoolSaveBox.classList.add('hidden');
+
+  // 연수 기획 섹션의 모든 블록을 코디네이터에게 복원
+  document.querySelectorAll('#section-modules .module-selection-block, #section-modules .etc-considerations, #section-modules .section-instruction')
+    .forEach(el => el.classList.remove('hidden'));
 }
 
 // Helper: School Manager remote infra data synchronization
@@ -1628,6 +1639,11 @@ function initSchoolSync() {
             state.goals = { ...state.goals, ...parsedData.goals };
             applyGoalsToDOM(state.goals);
           }
+
+          if (parsedData.planning) {
+            state.planning = parsedData.planning;
+            applyPlanningToDOM(state.planning);
+          }
         } else {
           // Fallback legacy structure containing only infra
           state.infra = { ...state.infra, ...parsedData };
@@ -1635,7 +1651,7 @@ function initSchoolSync() {
         }
         
         triggerAutosave();
-        showToast(`[${schoolName}] 담당자가 작성한 인프라·참여 교원·연수 참여 목표 정보를 연동했습니다.`, 'success');
+        showToast(`[${schoolName}] 담당자가 작성한 인프라·참여 교원·연수 참여 목표·맞춤형 연수 기획 정보를 연동했습니다.`, 'success');
       } catch (err) {
         showToast('인프라 데이터를 복원하는 과정에서 오류가 발생했습니다.', 'error');
       }
@@ -1669,6 +1685,20 @@ function applyTeachersToDOM(teachers) {
     addTeacherRow();
     addTeacherRow();
   }
+}
+
+// Helper: Rebuild the planning table from synchronized data
+function applyPlanningToDOM(planning) {
+  const tbody = document.querySelector('#table-planning tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  if (planning && planning.length > 0) {
+    planning.forEach(p => addPlanningRow(p));
+  } else {
+    addPlanningRow({ moduleNum: 0, hours: 1 });
+    addPlanningRow({ moduleNum: 7, hours: 1 });
+  }
+  performValidation();
 }
 
 // Helper: Bind synchronized goals data to input controls
