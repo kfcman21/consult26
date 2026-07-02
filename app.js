@@ -1282,6 +1282,23 @@ async function fetchAllUsers() {
   return JSON.parse(localStorage.getItem('consult26_users')) || [];
 }
 
+// Helper: Fetch a single user by id (cloud single-doc read first, then LocalStorage).
+// Used for login/signup/seeding so the whole users collection never needs to be listed
+// — better privacy (no bulk exposure) and works even if `list` is disabled in rules.
+async function findUserById(id) {
+  if (isFirebaseEnabled && db) {
+    try {
+      const snap = await getDoc(doc(db, 'users', id));
+      if (snap.exists()) return snap.data();
+      // Not in cloud → fall through to LocalStorage (legacy local-only account)
+    } catch (err) {
+      console.warn("findUserById 클라우드 조회 실패, LocalStorage로 대체:", err);
+    }
+  }
+  const localUsers = JSON.parse(localStorage.getItem('consult26_users')) || [];
+  return localUsers.find(u => u.id === id) || null;
+}
+
 // Helper: Save single user account to cloud & local storage
 async function saveUserAccount(newUser) {
   let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
@@ -1301,13 +1318,10 @@ async function saveUserAccount(newUser) {
 
 // 11. LOGIN & USER MANAGEMENT MODULE
 async function initAuth() {
-  // Pre-seed some default users in LocalStorage if not exists
-  let users = await fetchAllUsers();
-  
-  // Ensure default accounts are seeded (Admin and School Manager)
-  const hasAdmin = users.some(u => u.id === 'admin');
-  const hasSchool = users.some(u => u.id === 'school');
-  
+  // Ensure default accounts are seeded (Admin and School Manager) — single-doc lookups
+  const hasAdmin = !!(await findUserById('admin'));
+  const hasSchool = !!(await findUserById('school'));
+
   if (!hasAdmin || !hasSchool) {
     if (!hasAdmin) {
       await saveUserAccount({
@@ -1351,9 +1365,10 @@ async function initAuth() {
     const pw = document.getElementById('login-pw').value;
 
     const hashedPw = await hashPassword(pw);
-    const freshUsers = await fetchAllUsers();
+    // Single-doc lookup by id (no full-collection listing needed for login)
+    const candidate = await findUserById(id);
     // Compare against the hash; fall back to plaintext for any legacy pre-hash accounts.
-    const matchedUser = freshUsers.find(u => u.id === id && (u.pw === hashedPw || u.pw === pw));
+    const matchedUser = (candidate && (candidate.pw === hashedPw || candidate.pw === pw)) ? candidate : null;
     if (matchedUser) {
       // Check if account has been approved by admin
       if (matchedUser.approved === false) {
@@ -1380,9 +1395,8 @@ async function initAuth() {
       return;
     }
 
-    // Refresh users list from cloud
-    const freshUsers = await fetchAllUsers();
-    if (freshUsers.some(u => u.id === id)) {
+    // Duplicate check by single-doc lookup (no full-collection listing needed)
+    if (await findUserById(id)) {
       showToast('이미 사용 중인 아이디입니다.', 'error');
       return;
     }
