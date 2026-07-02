@@ -1,3 +1,36 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getFirestore, doc, setDoc, getDoc, getDocs, collection, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+// ==========================================
+// 🔥 FIREBASE SYSTEM CONFIGURATION
+// ==========================================
+// 💡 실제 클라우드 데이터 관리를 위해 아래 객체에 본인의 Firebase 프로젝트 Web App Config 값을 채워 넣어 주세요.
+// 💡 config 값을 채우지 않거나 기본값 상태일 경우, 기존의 브라우저 LocalStorage 백업 모드로 자동 전환(Fallback)되어 안전하게 작동합니다.
+const firebaseConfig = {
+  apiKey: "YOUR_FIREBASE_API_KEY",
+  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
+  projectId: "YOUR_FIREBASE_PROJECT_ID",
+  storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
+  appId: "YOUR_FIREBASE_APP_ID"
+};
+
+let db = null;
+let isFirebaseEnabled = false;
+
+if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY") {
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    isFirebaseEnabled = true;
+    console.log("⚡ Firebase Firestore 클라우드 데이터베이스가 연결되었습니다.");
+  } catch (err) {
+    console.error("❌ Firebase 초기화 실패. LocalStorage 백업 모드로 가동합니다:", err);
+  }
+} else {
+  console.log("ℹ️ Firebase Config 미제공. 브라우저 로컬 스토리지(LocalStorage) 모드로 안전 가동 중입니다.");
+}
+
 // Application State Management
 let state = {
   theme: 'light-theme',
@@ -688,20 +721,37 @@ function triggerAutosave() {
   saveToLocalStorage();
 }
 
-function saveToLocalStorage() {
+async function saveToLocalStorage() {
   if (!state.currentUser) return;
   updateStateFromDOM();
-  // Key data by current logged-in user ID for separation
+  
+  // 1. LocalStorage Backup (Always backup locally first)
   localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(state));
   
-  // If role is school, save infra and teachers data in a shared school slot for coordinators to sync
-  if (state.currentUser.role === 'school' && state.infra.school_name) {
+  const sharedSchoolData = (state.currentUser.role === 'school' && state.infra.school_name) ? {
+    infra: state.infra,
+    teachers: state.teachers
+  } : null;
+
+  if (sharedSchoolData) {
     const schoolNameClean = state.infra.school_name.trim();
-    const sharedSchoolData = {
-      infra: state.infra,
-      teachers: state.teachers
-    };
     localStorage.setItem(`consult26_infra_${schoolNameClean}`, JSON.stringify(sharedSchoolData));
+  }
+
+  // 2. Firebase Cloud Sync (Async)
+  if (isFirebaseEnabled && db) {
+    try {
+      const recordDocRef = doc(db, 'records', state.currentUser.id);
+      await setDoc(recordDocRef, state);
+      
+      if (sharedSchoolData) {
+        const schoolNameClean = state.infra.school_name.trim();
+        const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
+        await setDoc(sharedDocRef, sharedSchoolData);
+      }
+    } catch (err) {
+      console.warn("Firebase 클라우드 저장 실패 (오프라인 상태), 로컬스토리지에 백업 완료:", err);
+    }
   }
   
   const now = new Date();
@@ -709,17 +759,42 @@ function saveToLocalStorage() {
   document.getElementById('autosave-text').textContent = `자동 저장됨: ${timeStr}`;
 }
 
-function loadFromLocalStorage() {
+async function loadFromLocalStorage() {
   if (!state.currentUser) return;
-  const data = localStorage.getItem(`consult26_record_${state.currentUser.id}`);
-  if (data) {
+  
+  let loadedState = null;
+
+  // 1. Load from Firebase Firestore
+  if (isFirebaseEnabled && db) {
     try {
-      const savedState = JSON.parse(data);
-      applyStateToDOM(savedState);
-      showToast(`${state.currentUser.name} 코디네이터님의 데이터를 불러왔습니다.`, 'success');
-    } catch (e) {
-      console.error('Failed to restore data from LocalStorage', e);
+      const recordDocRef = doc(db, 'records', state.currentUser.id);
+      const docSnap = await getDoc(recordDocRef);
+      if (docSnap.exists()) {
+        loadedState = docSnap.data();
+        console.log("⚡ Firebase 클라우드에서 최신 데이터를 연동했습니다.");
+      }
+    } catch (err) {
+      console.warn("Firebase 데이터를 불러오지 못해 로컬 스토리지를 검색합니다:", err);
     }
+  }
+
+  // 2. Fallback to LocalStorage
+  if (!loadedState) {
+    const data = localStorage.getItem(`consult26_record_${state.currentUser.id}`);
+    if (data) {
+      try {
+        loadedState = JSON.parse(data);
+        console.log("ℹ️ 로컬스토리지 백업에서 데이터를 복원했습니다.");
+      } catch (e) {
+        console.error('Failed to restore data from LocalStorage', e);
+      }
+    }
+  }
+
+  // 3. Apply state
+  if (loadedState) {
+    applyStateToDOM(loadedState);
+    showToast(`${state.currentUser.name} 코디네이터님의 최신 데이터를 불러왔습니다.`, 'success');
   } else {
     // Reset to defaults for new user
     applyStateToDOM({
@@ -1131,9 +1206,44 @@ btnPrint.addEventListener('click', () => {
 });
 
 // 11. LOGIN & USER MANAGEMENT MODULE
-function initAuth() {
-  // Pre-seed some default users in LocalStorage if not exists
+// Helper: Fetch all users from cloud or local storage fallback
+async function fetchAllUsers() {
+  if (isFirebaseEnabled && db) {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'users'));
+      const cloudUsers = [];
+      querySnapshot.forEach(doc => {
+        cloudUsers.push(doc.data());
+      });
+      return cloudUsers;
+    } catch (err) {
+      console.warn("Firebase fetchAllUsers failed, falling back to LocalStorage:", err);
+    }
+  }
+  return JSON.parse(localStorage.getItem('consult26_users')) || [];
+}
+
+// Helper: Save single user account to cloud & local storage
+async function saveUserAccount(newUser) {
   let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
+  if (!users.some(u => u.id === newUser.id)) {
+    users.push(newUser);
+    localStorage.setItem('consult26_users', JSON.stringify(users));
+  }
+  
+  if (isFirebaseEnabled && db) {
+    try {
+      await setDoc(doc(db, 'users', newUser.id), newUser);
+    } catch (err) {
+      console.warn("Firebase saveUserAccount failed:", err);
+    }
+  }
+}
+
+// 11. LOGIN & USER MANAGEMENT MODULE
+async function initAuth() {
+  // Pre-seed some default users in LocalStorage if not exists
+  let users = await fetchAllUsers();
   
   // Ensure default accounts are seeded (Admin and School Manager)
   const hasAdmin = users.some(u => u.id === 'admin');
@@ -1141,7 +1251,7 @@ function initAuth() {
   
   if (!hasAdmin || !hasSchool) {
     if (!hasAdmin) {
-      users.push({
+      await saveUserAccount({
         id: 'admin',
         name: '시스템 관리자',
         pw: 'admin123',
@@ -1151,7 +1261,7 @@ function initAuth() {
       });
     }
     if (!hasSchool) {
-      users.push({
+      await saveUserAccount({
         id: 'school',
         name: '신성초 담당자',
         pw: 'school123',
@@ -1160,7 +1270,6 @@ function initAuth() {
         approved: true
       });
     }
-    localStorage.setItem('consult26_users', JSON.stringify(users));
   }
 
   // Switch between forms
@@ -1177,12 +1286,13 @@ function initAuth() {
   });
 
   // Handle Login submission
-  loginForm.addEventListener('submit', (e) => {
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('login-id').value.trim();
     const pw = document.getElementById('login-pw').value;
 
-    const matchedUser = users.find(u => u.id === id && u.pw === pw);
+    const freshUsers = await fetchAllUsers();
+    const matchedUser = freshUsers.find(u => u.id === id && u.pw === pw);
     if (matchedUser) {
       // Check if account has been approved by admin
       if (matchedUser.approved === false) {
@@ -1197,7 +1307,7 @@ function initAuth() {
   });
 
   // Handle Signup submission
-  signupForm.addEventListener('submit', (e) => {
+  signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('signup-id').value.trim();
     const name = document.getElementById('signup-name').value.trim();
@@ -1209,9 +1319,9 @@ function initAuth() {
       return;
     }
 
-    // Refresh users list from localStorage
-    users = JSON.parse(localStorage.getItem('consult26_users')) || [];
-    if (users.some(u => u.id === id)) {
+    // Refresh users list from cloud
+    const freshUsers = await fetchAllUsers();
+    if (freshUsers.some(u => u.id === id)) {
       showToast('이미 사용 중인 아이디입니다.', 'error');
       return;
     }
@@ -1224,9 +1334,8 @@ function initAuth() {
       date: new Date().toLocaleDateString(),
       approved: false // Newly registered users default to pending approval status
     };
-    users.push(newUser);
-    localStorage.setItem('consult26_users', JSON.stringify(users));
     
+    await saveUserAccount(newUser);
     showToast('회원가입 신청이 완료되었습니다! 관리자 승인 완료 후 이용 가능합니다.', 'success');
     
     // Switch to login
@@ -1415,7 +1524,7 @@ function initSchoolSync() {
   const syncBtnInfra = document.getElementById('btn-sync-school-infra');
   const syncBtnOverview = document.getElementById('btn-sync-school-infra-overview');
   
-  const performSync = () => {
+  const performSync = async () => {
     const schoolNameInput = document.getElementById('school_name');
     if (!schoolNameInput) return;
 
@@ -1425,11 +1534,37 @@ function initSchoolSync() {
       return;
     }
 
-    const sharedDataStr = localStorage.getItem(`consult26_infra_${schoolName}`);
-    if (sharedDataStr) {
+    let parsedData = null;
+
+    // 1. Load from Firebase Cloud DB
+    if (isFirebaseEnabled && db) {
       try {
-        const parsedData = JSON.parse(sharedDataStr);
-        
+        const sharedDocRef = doc(db, 'shared_infra', schoolName);
+        const docSnap = await getDoc(sharedDocRef);
+        if (docSnap.exists()) {
+          parsedData = docSnap.data();
+          console.log(`⚡ Firebase 클라우드에서 [${schoolName}] 공유 데이터를 연동했습니다.`);
+        }
+      } catch (err) {
+        console.warn("Firebase 원격 학교 정보 연동 실패, 로컬 캐시를 조회합니다:", err);
+      }
+    }
+
+    // 2. Fallback to LocalStorage
+    if (!parsedData) {
+      const sharedDataStr = localStorage.getItem(`consult26_infra_${schoolName}`);
+      if (sharedDataStr) {
+        try {
+          parsedData = JSON.parse(sharedDataStr);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
+    // 3. Apply to DOM & State
+    if (parsedData) {
+      try {
         if (parsedData.infra) {
           // Object structure containing both infra & teachers
           state.infra = { ...state.infra, ...parsedData.infra };
@@ -1446,7 +1581,7 @@ function initSchoolSync() {
         triggerAutosave();
         showToast(`[${schoolName}] 담당자가 작성한 인프라 및 참여 교원 정보를 연동했습니다.`, 'success');
       } catch (err) {
-        showToast('인프라 데이터를 불러오는 데 실패했습니다.', 'error');
+        showToast('인프라 데이터를 복원하는 과정에서 오류가 발생했습니다.', 'error');
       }
     } else {
       showToast(`가입된 [${schoolName}] 담당자의 인프라 데이터가 없습니다. (학교 담당자 계정으로 로그인해 정보를 먼저 저장해야 합니다.)`, 'error');
@@ -1516,12 +1651,12 @@ function applyInfraToDOM(infra) {
 }
 
 // Render registered users in admin management table
-function renderAdminUserManagement() {
+async function renderAdminUserManagement() {
   const tbody = document.querySelector('#table-users-admin tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
   
-  const users = JSON.parse(localStorage.getItem('consult26_users')) || [];
+  const users = await fetchAllUsers();
   
   const roleNames = {
     admin: '관리자',
@@ -1585,31 +1720,44 @@ function renderAdminUserManagement() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-function toggleUserApproval(userId) {
+async function toggleUserApproval(userId) {
   let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
   const user = users.find(u => u.id === userId);
   if (user) {
     user.approved = !user.approved;
     localStorage.setItem('consult26_users', JSON.stringify(users));
     
+    if (isFirebaseEnabled && db) {
+      try {
+        await setDoc(doc(db, 'users', userId), user);
+      } catch (err) {
+        console.warn("Firebase toggleUserApproval failed:", err);
+      }
+    }
+    
     const message = user.approved ? `[${userId}] 계정의 가입 권한이 승인되었습니다.` : `[${userId}] 계정의 승인이 취소되었습니다.`;
     showToast(message, 'success');
-    renderAdminUserManagement();
+    await renderAdminUserManagement();
   }
 }
 
-function deleteUserAccount(userId) {
+async function deleteUserAccount(userId) {
   let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
   users = users.filter(u => u.id !== userId);
   localStorage.setItem('consult26_users', JSON.stringify(users));
-  
-  // Wipe associated data
   localStorage.removeItem(`consult26_record_${userId}`);
   
-  showToast(`계정 [ ${userId} ] 이 정상 삭제되었습니다.`, 'success');
+  if (isFirebaseEnabled && db) {
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      await deleteDoc(doc(db, 'records', userId));
+    } catch (err) {
+      console.warn("Firebase deleteUserAccount failed:", err);
+    }
+  }
   
-  // Re-render admin board
-  renderAdminUserManagement();
+  showToast(`계정 [ ${userId} ] 이 정상 삭제되었습니다.`, 'success');
+  await renderAdminUserManagement();
 }
 
 // Helper: Toast Notifications
