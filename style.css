@@ -1847,6 +1847,36 @@ td select {
 
 .margin-top-sm { margin-top: 8px; }
 
+/* ================= 운영기관(agency) 열람 전용 모드 ================= */
+/* 입력 컨트롤 잠금 (마우스/포커스 차단, 시각적으로 비활성 표시) */
+body.agency-readonly #consult-form input,
+body.agency-readonly #consult-form textarea,
+body.agency-readonly #consult-form select,
+body.agency-readonly #signature-canvas {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.9;
+}
+/* 편집·행조작·저장·서명 관련 버튼 및 모듈 토글 숨김 */
+body.agency-readonly #btn-add-teacher,
+body.agency-readonly #btn-add-plan,
+body.agency-readonly .btn-delete-row,
+body.agency-readonly #school-save-box,
+body.agency-readonly #btn-reset,
+body.agency-readonly #btn-import-json,
+body.agency-readonly .module-control,
+body.agency-readonly #btn-clear-signature,
+body.agency-readonly #btn-lock-signature,
+body.agency-readonly #photo-dropzone {
+  display: none !important;
+}
+/* 열람 전용 안내 배지 */
+body.agency-readonly #user-display-role::after {
+  content: " · 읽기 전용";
+  color: var(--warning);
+  font-weight: 600;
+}
+
 /* ================= 사전 자가진단 인포그래픽 ================= */
 .sd-panel {
   border: 1px solid var(--border-color);

@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { getFirestore, doc, setDoc, getDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 // ==========================================
 // 🔥 FIREBASE SYSTEM CONFIGURATION
@@ -732,11 +732,13 @@ function initAutosave() {
 
 function triggerAutosave() {
   if (!state.currentUser) return; // Prevent autosaving when not logged in
+  if (state.currentUser.role === 'agency') return; // 운영기관은 열람 전용 — 저장 금지
   saveToLocalStorage();
 }
 
 function saveToLocalStorage() {
   if (!state.currentUser) return;
+  if (state.currentUser.role === 'agency') return; // 운영기관은 열람 전용 — 저장 금지
   updateStateFromDOM();
 
   // 1. LocalStorage Backup (Immediate & Sync) — never persist the account password.
@@ -1267,19 +1269,57 @@ btnPrint.addEventListener('click', () => {
 // 11. LOGIN & USER MANAGEMENT MODULE
 // Helper: Fetch all users from cloud or local storage fallback
 async function fetchAllUsers() {
+  // 관리자 목록은 컬렉션 list 대신 단일 레지스트리 문서(비밀번호 미포함)를 읽는다.
+  // → 규칙에서 users list를 차단해도 동작하며, 전체 사용자 목록/비밀번호가 노출되지 않음.
   if (isFirebaseEnabled && db) {
     try {
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      const cloudUsers = [];
-      querySnapshot.forEach(doc => {
-        cloudUsers.push(doc.data());
-      });
-      return cloudUsers;
+      const snap = await getDoc(doc(db, 'app_meta', 'users_registry'));
+      if (snap.exists() && Array.isArray(snap.data().list)) return snap.data().list;
     } catch (err) {
-      console.warn("Firebase fetchAllUsers failed, falling back to LocalStorage:", err);
+      console.warn("Firebase 사용자 레지스트리 조회 실패, LocalStorage로 대체:", err);
     }
   }
   return JSON.parse(localStorage.getItem('consult26_users')) || [];
+}
+
+// Registry helpers: keep a single world-readable summary doc (no passwords) so the
+// admin screen can enumerate accounts without listing the users collection.
+function summarizeUser(u) {
+  return {
+    id: u.id,
+    name: u.name || '',
+    role: u.role || 'user',
+    approved: u.approved === true,
+    date: u.date || '-'
+  };
+}
+
+async function upsertUserRegistry(user) {
+  if (!(isFirebaseEnabled && db)) return;
+  const ref = doc(db, 'app_meta', 'users_registry');
+  try {
+    const snap = await getDoc(ref);
+    let list = (snap.exists() && Array.isArray(snap.data().list)) ? snap.data().list : [];
+    const idx = list.findIndex(x => x.id === user.id);
+    const summary = summarizeUser(user);
+    if (idx >= 0) list[idx] = summary; else list.push(summary);
+    await setDoc(ref, { list, updatedAt: Date.now() });
+  } catch (err) {
+    console.warn("사용자 레지스트리 업데이트 실패:", err);
+  }
+}
+
+async function removeUserRegistry(userId) {
+  if (!(isFirebaseEnabled && db)) return;
+  const ref = doc(db, 'app_meta', 'users_registry');
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const list = (Array.isArray(snap.data().list) ? snap.data().list : []).filter(x => x.id !== userId);
+    await setDoc(ref, { list, updatedAt: Date.now() });
+  } catch (err) {
+    console.warn("사용자 레지스트리 삭제 실패:", err);
+  }
 }
 
 // Helper: Fetch a single user by id (cloud single-doc read first, then LocalStorage).
@@ -1299,14 +1339,10 @@ async function findUserById(id) {
   return localUsers.find(u => u.id === id) || null;
 }
 
-// Helper: Save single user account to cloud & local storage
+// Helper: Save single user account to cloud & local storage (+ registry summary)
 async function saveUserAccount(newUser) {
-  let users = JSON.parse(localStorage.getItem('consult26_users')) || [];
-  if (!users.some(u => u.id === newUser.id)) {
-    users.push(newUser);
-    localStorage.setItem('consult26_users', JSON.stringify(users));
-  }
-  
+  updateLocalUserCache(newUser);
+
   if (isFirebaseEnabled && db) {
     try {
       await setDoc(doc(db, 'users', newUser.id), newUser);
@@ -1314,35 +1350,40 @@ async function saveUserAccount(newUser) {
       console.warn("Firebase saveUserAccount failed:", err);
     }
   }
+  await upsertUserRegistry(newUser);
 }
 
 // 11. LOGIN & USER MANAGEMENT MODULE
 async function initAuth() {
   // Ensure default accounts are seeded (Admin and School Manager) — single-doc lookups
-  const hasAdmin = !!(await findUserById('admin'));
-  const hasSchool = !!(await findUserById('school'));
+  const adminUser = await findUserById('admin');
+  const schoolUser = await findUserById('school');
 
-  if (!hasAdmin || !hasSchool) {
-    if (!hasAdmin) {
-      await saveUserAccount({
-        id: 'admin',
-        name: '시스템 관리자',
-        pw: await hashPassword('admin123'),
-        role: 'admin',
-        date: new Date().toLocaleDateString(),
-        approved: true
-      });
-    }
-    if (!hasSchool) {
-      await saveUserAccount({
-        id: 'school',
-        name: '신성초 담당자',
-        pw: await hashPassword('school123'),
-        role: 'school',
-        date: new Date().toLocaleDateString(),
-        approved: true
-      });
-    }
+  if (!adminUser) {
+    await saveUserAccount({
+      id: 'admin',
+      name: '시스템 관리자',
+      pw: await hashPassword('admin123'),
+      role: 'admin',
+      date: new Date().toLocaleDateString(),
+      approved: true
+    });
+  } else {
+    // 이미 존재하는 계정도 레지스트리에 반영(레지스트리 최초 도입 시 마이그레이션)
+    await upsertUserRegistry(adminUser);
+  }
+
+  if (!schoolUser) {
+    await saveUserAccount({
+      id: 'school',
+      name: '신성초 담당자',
+      pw: await hashPassword('school123'),
+      role: 'school',
+      date: new Date().toLocaleDateString(),
+      approved: true
+    });
+  } else {
+    await upsertUserRegistry(schoolUser);
   }
 
   // Switch between forms
@@ -1376,6 +1417,7 @@ async function initAuth() {
         return;
       }
       authenticateUser(matchedUser);
+      upsertUserRegistry(matchedUser); // 레지스트리에 없던 기존 계정도 점진적으로 반영(비차단)
       showToast(`${matchedUser.name}님 환영합니다!`, 'success');
     } else {
       showToast('아이디 또는 비밀번호가 일치하지 않습니다.', 'error');
@@ -1478,16 +1520,20 @@ function authenticateUser(user, isSessionRestore = false) {
   const roleNames = {
     admin: '시스템 관리자',
     user: '일반 코디네이터',
-    school: '학교 담당자'
+    school: '학교 담당자',
+    agency: '운영기관 (열람 전용)'
   };
   userDisplayRole.textContent = roleNames[user.role] || '일반 회원';
-  
+
   // Reveal layout and hide overlay gateway
   appMainLayout.classList.remove('blur-content');
   authGateway.classList.add('hidden');
-  
+
   const syncBtn = document.getElementById('btn-sync-school-infra');
-  
+
+  // 운영기관(agency)은 열람 전용 — 모든 편집 UI 비활성화
+  applyReadOnly(user.role === 'agency');
+
   // Check authorization roles
   if (user.role === 'admin') {
     navAdminLi.classList.remove('hidden');
@@ -1499,6 +1545,7 @@ function authenticateUser(user, isSessionRestore = false) {
     restrictTabsForSchool();
     if (syncBtn) syncBtn.classList.add('hidden');
   } else {
+    // user(코디네이터) 및 agency(운영기관 열람 전용): 전 탭 열람 허용
     navAdminLi.classList.add('hidden');
     enableAllTabs();
     if (syncBtn) syncBtn.classList.remove('hidden');
@@ -1514,6 +1561,12 @@ function authenticateUser(user, isSessionRestore = false) {
       window.dispatchEvent(new Event('resize'));
     }
   }, 200);
+}
+
+// Toggle app-wide read-only mode for 운영기관(agency): 열람만 가능, 편집·저장 불가.
+// (버튼 숨김/입력 잠금은 CSS의 body.agency-readonly 규칙이 담당)
+function applyReadOnly(enabled) {
+  document.body.classList.toggle('agency-readonly', enabled);
 }
 
 // Helper: Restrict UI navigation for school managers
@@ -1820,7 +1873,8 @@ async function renderAdminUserManagement() {
   const roleNames = {
     admin: '관리자',
     user: '일반 회원',
-    school: '학교 담당자'
+    school: '학교 담당자',
+    agency: '운영기관'
   };
   
   users.forEach((u, index) => {
@@ -1881,10 +1935,9 @@ async function renderAdminUserManagement() {
 }
 
 async function toggleUserApproval(userId) {
-  // Read from the same source the admin table renders from (cloud when enabled),
-  // so accounts registered on other devices can actually be approved.
-  const users = await fetchAllUsers();
-  const user = users.find(u => u.id === userId);
+  // Fetch the FULL user doc (incl. hashed password) so we don't overwrite it with a
+  // registry summary that has no password.
+  const user = await findUserById(userId);
   if (!user) {
     showToast('해당 계정을 찾을 수 없습니다. 목록을 새로고침해 주세요.', 'error');
     return;
@@ -1900,6 +1953,7 @@ async function toggleUserApproval(userId) {
     }
   }
   updateLocalUserCache(user);
+  await upsertUserRegistry(user);
 
   const message = user.approved ? `[${userId}] 계정의 가입 권한이 승인되었습니다.` : `[${userId}] 계정의 승인이 취소되었습니다.`;
   showToast(message, 'success');
@@ -1921,6 +1975,8 @@ async function deleteUserAccount(userId) {
   users = users.filter(u => u.id !== userId);
   localStorage.setItem('consult26_users', JSON.stringify(users));
   localStorage.removeItem(`consult26_record_${userId}`);
+
+  await removeUserRegistry(userId);
 
   showToast(`계정 [ ${userId} ] 이 정상 삭제되었습니다.`, 'success');
   await renderAdminUserManagement();

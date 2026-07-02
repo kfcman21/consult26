@@ -22,16 +22,25 @@ service cloud.firestore {
 
     // 1. 회원 정보 (users)
     match /users/{userId} {
-      allow get, list: if true;
+      // 단건 조회(get)만 허용, 전체 목록(list)은 차단하여 계정 일괄 수집을 방지.
+      // (로그인/회원가입/시드는 ID 단건 getDoc, 관리자 목록은 users_registry 사용)
+      allow get: if true;
+      allow list: if false;
 
       // 신규 계정은 스스로 관리자 권한을 부여할 수 없고, 반드시
       // 승인 대기(approved=false) 상태로만 생성 가능. (기본 계정 admin/school 예외)
-      allow create: if (request.resource.data.role in ['user', 'school']
+      allow create: if (request.resource.data.role in ['user', 'school', 'agency']
                         && request.resource.data.approved == false)
                      || userId in ['admin', 'school'];
 
       // 관리자 승인/삭제 기능이 자체 로그인 기반이라 제한 불가 — Auth 도입 필요.
       allow update, delete: if true;
+    }
+
+    // 1-1. 관리자용 사용자 요약 레지스트리 (비밀번호 미포함, 목록 대체용)
+    match /app_meta/{docId} {
+      allow get, write: if true;
+      allow list: if false;
     }
 
     // 2. 코디네이터 면담지 데이터 (records)
