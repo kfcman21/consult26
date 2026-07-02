@@ -713,11 +713,21 @@ function initAutosave() {
       }
       if (e.target.id === 'participation_goal_etc_chk') {
         const target = document.getElementById('participation_goal_etc');
-        if (target) target.disabled = !e.target.checked;
+        if (target && e.target.checked) target.focus();
       }
       triggerAutosave();
     });
   });
+
+  // '기타 목표 직접 입력' 필드는 항상 입력 가능 — 입력하면 체크박스를 자동 동기화
+  const goalEtcInput = document.getElementById('participation_goal_etc');
+  const goalEtcChk = document.getElementById('participation_goal_etc_chk');
+  if (goalEtcInput && goalEtcChk) {
+    goalEtcInput.addEventListener('input', () => {
+      goalEtcChk.checked = goalEtcInput.value.trim().length > 0;
+      triggerAutosave();
+    });
+  }
 }
 
 function triggerAutosave() {
@@ -738,6 +748,7 @@ function saveToLocalStorage() {
     infra: state.infra,
     teachers: state.teachers,
     goals: state.goals,
+    modules: state.modules,
     planning: state.planning
   } : null;
 
@@ -852,6 +863,7 @@ async function loadFromLocalStorage() {
               infra: localState.infra,
               teachers: localState.teachers,
               goals: localState.goals,
+              modules: localState.modules,
               planning: localState.planning
             } : null;
             if (sharedSchoolData) {
@@ -1070,7 +1082,7 @@ function applyStateToDOM(savedState) {
   });
   document.getElementById('participation_goal_etc_chk').checked = !!state.goals.participation_goal_etc_chk;
   document.getElementById('participation_goal_etc').value = state.goals.participation_goal_etc || '';
-  document.getElementById('participation_goal_etc').disabled = !state.goals.participation_goal_etc_chk;
+  document.getElementById('participation_goal_etc').disabled = false;
 
   const capRadio = document.querySelector(`input[name="digital_capacity"][value="${state.diagnosis.digital_capacity}"]`);
   if (capRadio) capRadio.checked = true;
@@ -1531,9 +1543,11 @@ function restrictTabsForSchool() {
   const schoolSaveBox = document.getElementById('school-save-box');
   if (schoolSaveBox) schoolSaveBox.classList.remove('hidden');
 
-  // 연수 기획 섹션: 학교 담당자에게는 '② 맞춤형 연수 기획' 표만 노출
-  // (모듈 선정/유효성 검사/기타 고려사항은 코디네이터 영역이므로 숨김)
-  document.querySelectorAll('#section-modules .module-selection-block, #section-modules .etc-considerations, #section-modules .section-instruction')
+  // 연수 기획 섹션: 학교 담당자에게 모듈 구성 + 맞춤형 연수 기획을 노출
+  // (③ 기타 고려사항만 코디네이터 영역이므로 숨김)
+  document.querySelectorAll('#section-modules .module-selection-block, #section-modules .section-instruction')
+    .forEach(el => el.classList.remove('hidden'));
+  document.querySelectorAll('#section-modules .etc-considerations')
     .forEach(el => el.classList.add('hidden'));
 }
 
@@ -1640,6 +1654,11 @@ function initSchoolSync() {
             applyGoalsToDOM(state.goals);
           }
 
+          if (parsedData.modules) {
+            state.modules = { ...state.modules, ...parsedData.modules };
+            applyModulesToDOM(state.modules);
+          }
+
           if (parsedData.planning) {
             state.planning = parsedData.planning;
             applyPlanningToDOM(state.planning);
@@ -1651,7 +1670,7 @@ function initSchoolSync() {
         }
         
         triggerAutosave();
-        showToast(`[${schoolName}] 담당자가 작성한 인프라·참여 교원·연수 참여 목표·맞춤형 연수 기획 정보를 연동했습니다.`, 'success');
+        showToast(`[${schoolName}] 담당자가 작성한 인프라·참여 교원·연수 참여 목표·모듈 구성·맞춤형 연수 기획 정보를 연동했습니다.`, 'success');
       } catch (err) {
         showToast('인프라 데이터를 복원하는 과정에서 오류가 발생했습니다.', 'error');
       }
@@ -1687,6 +1706,23 @@ function applyTeachersToDOM(teachers) {
   }
 }
 
+// Helper: Bind synchronized module configuration to the module cards
+function applyModulesToDOM(modules) {
+  for (let i = 1; i <= 6; i++) {
+    const active = !!modules[`mod${i}_active`];
+    const chk = document.getElementById(`mod${i}_active`);
+    const input = document.getElementById(`mod${i}_hours`);
+    const card = document.querySelector(`.module-item-card[data-module-id="${i}"]`);
+    if (chk) chk.checked = active;
+    if (input) {
+      input.value = modules[`mod${i}_hours`] || 0;
+      input.disabled = !active;
+    }
+    if (card) card.classList.toggle('active-module', active);
+  }
+  performValidation();
+}
+
 // Helper: Rebuild the planning table from synchronized data
 function applyPlanningToDOM(planning) {
   const tbody = document.querySelector('#table-planning tbody');
@@ -1712,7 +1748,7 @@ function applyGoalsToDOM(goals) {
   if (etcChk) etcChk.checked = !!goals.participation_goal_etc_chk;
   if (etcInput) {
     etcInput.value = goals.participation_goal_etc || '';
-    etcInput.disabled = !goals.participation_goal_etc_chk;
+    etcInput.disabled = false;
   }
 }
 
