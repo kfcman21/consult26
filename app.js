@@ -736,7 +736,8 @@ function saveToLocalStorage() {
   const schoolNameClean = state.infra.school_name ? state.infra.school_name.trim() : '';
   const sharedSchoolData = (state.currentUser.role === 'school' && schoolNameClean) ? {
     infra: state.infra,
-    teachers: state.teachers
+    teachers: state.teachers,
+    goals: state.goals
   } : null;
 
   if (sharedSchoolData) {
@@ -848,7 +849,8 @@ async function loadFromLocalStorage() {
             const schoolNameClean = localState.infra.school_name ? localState.infra.school_name.trim() : '';
             const sharedSchoolData = (localState.currentUser.role === 'school' && schoolNameClean) ? {
               infra: localState.infra,
-              teachers: localState.teachers
+              teachers: localState.teachers,
+              goals: localState.goals
             } : null;
             if (sharedSchoolData) {
               const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
@@ -1492,8 +1494,8 @@ function restrictTabsForSchool() {
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     const target = link.getAttribute('data-target');
-    // Allow both section-infra and section-overview
-    if (target === 'section-infra' || target === 'section-overview') {
+    // School manager may edit: 개요(교원명단)/인프라/연수 참여 목표
+    if (target === 'section-infra' || target === 'section-overview' || target === 'section-goals') {
       link.parentElement.classList.remove('hidden');
       if (target === 'section-infra') {
         link.classList.add('active');
@@ -1615,12 +1617,17 @@ function initSchoolSync() {
     if (parsedData) {
       try {
         if (parsedData.infra) {
-          // Object structure containing both infra & teachers
+          // Object structure containing infra & teachers (& goals when provided)
           state.infra = { ...state.infra, ...parsedData.infra };
           state.teachers = parsedData.teachers || [];
-          
+
           applyInfraToDOM(state.infra);
           applyTeachersToDOM(state.teachers);
+
+          if (parsedData.goals) {
+            state.goals = { ...state.goals, ...parsedData.goals };
+            applyGoalsToDOM(state.goals);
+          }
         } else {
           // Fallback legacy structure containing only infra
           state.infra = { ...state.infra, ...parsedData };
@@ -1628,7 +1635,7 @@ function initSchoolSync() {
         }
         
         triggerAutosave();
-        showToast(`[${schoolName}] 담당자가 작성한 인프라 및 참여 교원 정보를 연동했습니다.`, 'success');
+        showToast(`[${schoolName}] 담당자가 작성한 인프라·참여 교원·연수 참여 목표 정보를 연동했습니다.`, 'success');
       } catch (err) {
         showToast('인프라 데이터를 복원하는 과정에서 오류가 발생했습니다.', 'error');
       }
@@ -1661,6 +1668,21 @@ function applyTeachersToDOM(teachers) {
   } else {
     addTeacherRow();
     addTeacherRow();
+  }
+}
+
+// Helper: Bind synchronized goals data to input controls
+function applyGoalsToDOM(goals) {
+  const selected = goals.participation_goals || [];
+  document.querySelectorAll('input[name="participation_goal"]').forEach(cb => {
+    cb.checked = selected.includes(cb.value);
+  });
+  const etcChk = document.getElementById('participation_goal_etc_chk');
+  const etcInput = document.getElementById('participation_goal_etc');
+  if (etcChk) etcChk.checked = !!goals.participation_goal_etc_chk;
+  if (etcInput) {
+    etcInput.value = goals.participation_goal_etc || '';
+    etcInput.disabled = !goals.participation_goal_etc_chk;
   }
 }
 
