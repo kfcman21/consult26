@@ -124,6 +124,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initAutosave();
   initAuth(); // Setup login and signup logic
   initSchoolSync(); // Bind school manager data remote sync button
+
+  // Bind School Manager explicit Save & Submit completed button
+  const btnSchoolSave = document.getElementById('btn-school-save');
+  if (btnSchoolSave) {
+    btnSchoolSave.addEventListener('click', () => {
+      saveToLocalStorage();
+      const schoolName = document.getElementById('school_name').value.trim() || '학교';
+      showToast(`[${schoolName}] 정보가 안전하게 저장 및 제출 완료되었습니다.`, 'success');
+    });
+  }
 });
 
 // 1. Navigation Controller (Tabs)
@@ -1358,6 +1368,10 @@ function restrictTabsForSchool() {
   // Hide system top buttons (export, import, print, reset)
   const sysActions = document.querySelector('.system-actions');
   if (sysActions) sysActions.classList.add('hidden');
+
+  // Show School Manager explicit Save action button box
+  const schoolSaveBox = document.getElementById('school-save-box');
+  if (schoolSaveBox) schoolSaveBox.classList.remove('hidden');
 }
 
 // Helper: Restore UI navigation to full access
@@ -1390,14 +1404,18 @@ function enableAllTabs() {
   // Restore top actions
   const sysActions = document.querySelector('.system-actions');
   if (sysActions) sysActions.classList.remove('hidden');
+
+  // Hide School Manager explicit Save action button box from coordinators
+  const schoolSaveBox = document.getElementById('school-save-box');
+  if (schoolSaveBox) schoolSaveBox.classList.add('hidden');
 }
 
 // Helper: School Manager remote infra data synchronization
 function initSchoolSync() {
-  const syncBtn = document.getElementById('btn-sync-school-infra');
-  if (!syncBtn) return;
-
-  syncBtn.addEventListener('click', () => {
+  const syncBtnInfra = document.getElementById('btn-sync-school-infra');
+  const syncBtnOverview = document.getElementById('btn-sync-school-infra-overview');
+  
+  const performSync = () => {
     const schoolNameInput = document.getElementById('school_name');
     if (!schoolNameInput) return;
 
@@ -1433,7 +1451,10 @@ function initSchoolSync() {
     } else {
       showToast(`가입된 [${schoolName}] 담당자의 인프라 데이터가 없습니다. (학교 담당자 계정으로 로그인해 정보를 먼저 저장해야 합니다.)`, 'error');
     }
-  });
+  };
+
+  if (syncBtnInfra) syncBtnInfra.addEventListener('click', performSync);
+  if (syncBtnOverview) syncBtnOverview.addEventListener('click', performSync);
 }
 
 // Helper: Restore teachers table from synchronized state
