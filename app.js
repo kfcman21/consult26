@@ -1580,6 +1580,7 @@ function initSchoolSync() {
     }
 
     let parsedData = null;
+    let cloudError = null;
 
     // 1. Load from Firebase Cloud DB
     if (isFirebaseEnabled && db) {
@@ -1589,8 +1590,11 @@ function initSchoolSync() {
         if (docSnap.exists()) {
           parsedData = docSnap.data();
           console.log(`⚡ Firebase 클라우드에서 [${schoolName}] 공유 데이터를 연동했습니다.`);
+        } else {
+          console.log(`ℹ️ 클라우드에 shared_infra/${schoolName} 문서가 없습니다.`);
         }
       } catch (err) {
+        cloudError = err;
         console.warn("Firebase 원격 학교 정보 연동 실패, 로컬 캐시를 조회합니다:", err);
       }
     }
@@ -1628,8 +1632,17 @@ function initSchoolSync() {
       } catch (err) {
         showToast('인프라 데이터를 복원하는 과정에서 오류가 발생했습니다.', 'error');
       }
+    } else if (cloudError) {
+      // Distinguish a cloud access failure (rules not deployed / permission denied)
+      // from a genuine "no data" case so the cause is obvious.
+      const denied = cloudError.code === 'permission-denied' || /permission/i.test(cloudError.message || '');
+      if (denied) {
+        showToast('클라우드 접근 권한이 거부되었습니다. Firestore 보안 규칙 배포 상태를 확인해 주세요. (firebase deploy --only firestore:rules)', 'error');
+      } else {
+        showToast('클라우드 연결에 실패했습니다. 네트워크 상태를 확인해 주세요.', 'error');
+      }
     } else {
-      showToast(`가입된 [${schoolName}] 담당자의 인프라 데이터가 없습니다. (학교 담당자 계정으로 로그인해 정보를 먼저 저장해야 합니다.)`, 'error');
+      showToast(`[${schoolName}] 담당자가 저장한 데이터를 찾지 못했습니다. 학교명이 담당자가 입력한 값과 정확히 일치하는지 확인해 주세요. (예: '신성초' vs '신성초등학교')`, 'error');
     }
   };
 
