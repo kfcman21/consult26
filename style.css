@@ -538,6 +538,7 @@ body {
 }
 
 input[type="text"],
+input[type="password"],
 input[type="number"],
 input[type="datetime-local"],
 select,
@@ -555,6 +556,7 @@ textarea {
 }
 
 .light-theme input[type="text"],
+.light-theme input[type="password"],
 .light-theme input[type="number"],
 .light-theme input[type="datetime-local"],
 .light-theme select,
@@ -1476,6 +1478,7 @@ td select {
   }
   
   input[type="text"],
+  input[type="password"],
   input[type="number"],
   input[type="datetime-local"],
   select,
