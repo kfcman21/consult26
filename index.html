@@ -15,7 +15,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- Custom CSS -->
-  <script type="module" crossorigin src="/consult26/assets/index-DJ3BxLqG.js"></script>
+  <script type="module" crossorigin src="/consult26/assets/index-DYWMRjP-.js"></script>
   <link rel="stylesheet" crossorigin href="/consult26/assets/index-CA3Qxecc.css">
 </head>
 <body class="light-theme">
@@ -289,6 +289,9 @@
             <div class="card-header">
               <i data-lucide="info"></i>
               <h3>I. 심층면담 운영 개요</h3>
+              <button type="button" id="btn-sync-school-infra-overview" class="btn btn-small btn-outline" style="margin-left: auto;">
+                <i data-lucide="refresh-cw"></i> 담당자 입력 데이터 가져오기
+              </button>
             </div>
             <div class="card-body">
               <!-- Overview info group (can be hidden for school manager) -->
@@ -550,6 +553,13 @@
               <div class="form-group margin-top-md">
                 <label for="infra_notes">기타 시설 및 인프라 관련 학교 특이사항</label>
                 <textarea id="infra_notes" name="infra_notes" rows="3" placeholder="기타 특이사항이나 애로사항 등 기재"></textarea>
+              </div>
+
+              <!-- School Manager Only Save Action Button Box -->
+              <div class="form-actions-school hidden" id="school-save-box" style="margin-top: 28px; display: flex; justify-content: flex-end;">
+                <button type="button" id="btn-school-save" class="btn btn-primary" style="padding: 12px 24px;">
+                  <i data-lucide="save"></i> 학교 정보 저장 및 제출 완료
+                </button>
               </div>
             </div>
           </div>
