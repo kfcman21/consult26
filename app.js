@@ -35,6 +35,7 @@ if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY") 
 let state = {
   theme: 'light-theme',
   currentUser: null, // Stores { id, name, role } when authenticated
+  updatedAt: 0,
   checklist: {
     chk_guide_1: false,
     chk_guide_2: false,
@@ -694,6 +695,9 @@ function initAutosave() {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', triggerAutosave);
+      if (el.tagName === 'SELECT') {
+        el.addEventListener('change', triggerAutosave);
+      }
     }
   });
 
@@ -728,13 +732,13 @@ function saveToLocalStorage() {
   // 1. LocalStorage Backup (Immediate & Sync)
   localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(state));
   
-  const sharedSchoolData = (state.currentUser.role === 'school' && state.infra.school_name) ? {
+  const schoolNameClean = state.infra.school_name ? state.infra.school_name.trim() : '';
+  const sharedSchoolData = (state.currentUser.role === 'school' && schoolNameClean) ? {
     infra: state.infra,
     teachers: state.teachers
   } : null;
 
   if (sharedSchoolData) {
-    const schoolNameClean = state.infra.school_name.trim();
     localStorage.setItem(`consult26_infra_${schoolNameClean}`, JSON.stringify(sharedSchoolData));
   }
 
@@ -746,7 +750,6 @@ function saveToLocalStorage() {
     });
     
     if (sharedSchoolData) {
-      const schoolNameClean = state.infra.school_name.trim();
       const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
       setDoc(sharedDocRef, sharedSchoolData).catch(err => {
         console.warn("Firebase 공유 데이터 저장 거부/실패:", err);
@@ -815,10 +818,43 @@ async function loadFromLocalStorage() {
       const docSnap = await getDoc(recordDocRef);
       if (docSnap.exists()) {
         const cloudState = docSnap.data();
-        applyStateToDOM(cloudState);
-        // Sync local storage copy with the fresh cloud data
-        localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(cloudState));
-        showToast(`⚡ 최신 클라우드 서버 데이터로 동기화 완료했습니다.`, 'success');
+        
+        if (!localState) {
+          // 로컬 스토리지에 데이터가 아예 없는 경우 -> 클라우드 데이터로 화면 복원
+          applyStateToDOM(cloudState);
+          localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(cloudState));
+          showToast(`⚡ 클라우드 서버 데이터를 성공적으로 불러왔습니다.`, 'success');
+        } else {
+          // 로컬 스토리지와 클라우드 둘 다 데이터가 존재하는 경우
+          // 클라우드 데이터가 로컬보다 확실히 더 최신인 경우에만 클라우드 데이터로 덮어씀
+          const isCloudNewer = localState.updatedAt && cloudState.updatedAt && cloudState.updatedAt > localState.updatedAt;
+          
+          if (isCloudNewer) {
+            applyStateToDOM(cloudState);
+            localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(cloudState));
+            showToast(`⚡ 최신 클라우드 서버 데이터로 동기화 완료했습니다.`, 'success');
+          } else {
+            // 그 외에는 로컬을 유지하고 서버에 업로드
+            console.log("⚡ 로컬 데이터가 최신이거나 서버 데이터 최신 여부를 알 수 없어 서버 데이터를 업데이트합니다.");
+            // 로컬에 updatedAt이 없는 레거시 상태라면 현재 시각 부여
+            if (!localState.updatedAt) {
+              localState.updatedAt = Date.now();
+              localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(localState));
+            }
+            await setDoc(recordDocRef, localState);
+            
+            // sharedSchoolData 동기화도 실행
+            const schoolNameClean = localState.infra.school_name ? localState.infra.school_name.trim() : '';
+            const sharedSchoolData = (localState.currentUser.role === 'school' && schoolNameClean) ? {
+              infra: localState.infra,
+              teachers: localState.teachers
+            } : null;
+            if (sharedSchoolData) {
+              const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
+              await setDoc(sharedDocRef, sharedSchoolData);
+            }
+          }
+        }
       }
     } catch (err) {
       console.warn("Firestore 규칙 미비 또는 권한 부족으로 클라우드 데이터를 가져오지 못했습니다. 로컬 저장을 계속 사용합니다:", err);
@@ -829,6 +865,7 @@ async function loadFromLocalStorage() {
 // Collect values from HTML and update the global state object
 function updateStateFromDOM() {
   state.theme = document.body.classList.contains('dark-theme') ? 'dark-theme' : 'light-theme';
+  state.updatedAt = Date.now();
   
   for (let i = 1; i <= 5; i++) {
     const el = document.getElementById(`chk_guide_${i}`);
@@ -1136,6 +1173,9 @@ fileImport.addEventListener('change', (e) => {
   reader.onload = (event) => {
     try {
       const parsedData = JSON.parse(event.target.result);
+      if (!parsedData.updatedAt) {
+        parsedData.updatedAt = Date.now();
+      }
       applyStateToDOM(parsedData);
       saveToLocalStorage();
       showToast('JSON 파일을 성공적으로 불러왔습니다.', 'success');
@@ -1156,6 +1196,7 @@ btnReset.addEventListener('click', () => {
     
     state = {
       ...state,
+      updatedAt: Date.now(),
       checklist: { chk_guide_1: false, chk_guide_2: false, chk_guide_3: false, chk_guide_4: false, chk_guide_5: false },
       overview: { interview_date: '', operator_contact: '', coord_leader: '', coord_member1: '', coord_member2: '' },
       teachers: [],

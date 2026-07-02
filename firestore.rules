@@ -6,7 +6,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get, create: if true;
       allow update, delete: if true; 
-      allow list: if false;
+      allow list: if true;
     }
 
     // 2. 코디네이터 면담지 데이터 (records) 컬렉션 보안

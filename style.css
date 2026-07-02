@@ -1419,6 +1419,112 @@ td select {
   .form-grid {
     grid-template-columns: 1fr;
   }
+  
+  /* Sidebar Mobile Optimization: Convert to horizontal upper tab navigation */
+  .sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    padding: 12px 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    flex-direction: column;
+    gap: 10px;
+    z-index: 100;
+  }
+  
+  .sidebar-header {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .logo-text h1 {
+    font-size: 1rem;
+  }
+
+  .user-profile-badge {
+    margin-bottom: 0;
+    padding: 8px 12px;
+    background-color: rgba(0, 0, 0, 0.08);
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .sidebar-nav {
+    width: 100%;
+    margin-top: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .sidebar-nav::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  .sidebar-nav ul {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    padding-left: 0;
+    margin: 0;
+    white-space: nowrap;
+  }
+  
+  .sidebar-nav li {
+    margin-bottom: 0;
+  }
+  
+  .nav-link {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    border-radius: 6px;
+  }
+  
+  .nav-link.active {
+    background: var(--primary-glow);
+    border-left: none;
+  }
+  
+  .sidebar-footer {
+    display: none;
+  }
+
+  /* Table Inputs Mobile Minimum Width Guarantee */
+  td input[type="text"],
+  td select {
+    min-width: 130px;
+  }
+  
+  td input[type="number"] {
+    min-width: 65px;
+  }
+  
+  /* Header section typography on mobile */
+  .main-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .system-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .system-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  /* Auth card padding optimization on small devices */
+  .auth-card {
+    padding: 24px;
+    margin: 16px;
+  }
 }
 
 /* Print Styling for clean PDF Export */
