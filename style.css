@@ -1332,6 +1332,7 @@ td select {
   width: 100%;
   height: 100%;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .canvas-placeholder {
@@ -1412,6 +1413,12 @@ td select {
   }
   .modules-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Tablet/landscape phone range: 3~4 column forms are too cramped once the
+     sidebar has already stacked full-width above the content. */
+  .grid-3, .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -1524,6 +1531,91 @@ td select {
   .auth-card {
     padding: 24px;
     margin: 16px;
+  }
+
+  /* Section cards: reclaim padding for the narrower viewport */
+  .section-card {
+    padding: 18px;
+  }
+
+  .content-header h2 {
+    font-size: 1.4rem;
+  }
+
+  .header-meta {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .partner-logos {
+    font-size: 0.7rem;
+  }
+
+  /* Card header: icon + title + optional sync button (margin-left:auto) —
+     let the button drop to its own line instead of squeezing the title. */
+  .card-header {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .card-header h3 {
+    font-size: 1.05rem;
+  }
+
+  .card-header .btn {
+    margin-left: 0 !important;
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Table section titles + "행 추가" button: stack instead of squeezing */
+  .table-header-group {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .table-header-group .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .checklist-item {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  /* Icon-only buttons: nudge up toward a comfortable touch target */
+  .btn-toggle-pw {
+    padding: 8px;
+  }
+
+  #btn-logout {
+    padding: 8px;
+  }
+
+  /* Toast: constrain both edges so long messages can't run off-screen
+     (previously only `right` was pinned, so text could overflow past the
+     left edge on narrow phones). */
+  .toast {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .radio-tile-group {
+    gap: 8px;
+  }
+
+  /* Force a clean 2-column grid instead of uneven flex-grow wrapping */
+  .radio-tile-container {
+    flex: 1 1 calc(50% - 4px);
+    height: 70px;
+  }
+
+  .tile-label {
+    font-size: 0.7rem;
   }
 }
 
