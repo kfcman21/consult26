@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getFirestore, doc, setDoc, getDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { getFirestore, doc, setDoc, getDoc, deleteDoc, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 // ==========================================
 // 🔥 FIREBASE SYSTEM CONFIGURATION
@@ -1294,16 +1294,20 @@ function summarizeUser(u) {
   };
 }
 
+// 여러 사용자가 동시에 로그인/가입/승인해도 read-modify-write가 서로 덮어쓰지 않도록
+// 트랜잭션으로 묶어서 처리(마지막에 읽은 스냅샷 기준으로만 갱신됨을 Firestore가 보장).
 async function upsertUserRegistry(user) {
   if (!(isFirebaseEnabled && db)) return;
   const ref = doc(db, 'app_meta', 'users_registry');
   try {
-    const snap = await getDoc(ref);
-    let list = (snap.exists() && Array.isArray(snap.data().list)) ? snap.data().list : [];
-    const idx = list.findIndex(x => x.id === user.id);
-    const summary = summarizeUser(user);
-    if (idx >= 0) list[idx] = summary; else list.push(summary);
-    await setDoc(ref, { list, updatedAt: Date.now() });
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      let list = (snap.exists() && Array.isArray(snap.data().list)) ? snap.data().list : [];
+      const idx = list.findIndex(x => x.id === user.id);
+      const summary = summarizeUser(user);
+      if (idx >= 0) list[idx] = summary; else list.push(summary);
+      tx.set(ref, { list, updatedAt: Date.now() });
+    });
   } catch (err) {
     console.warn("사용자 레지스트리 업데이트 실패:", err);
   }
@@ -1313,10 +1317,12 @@ async function removeUserRegistry(userId) {
   if (!(isFirebaseEnabled && db)) return;
   const ref = doc(db, 'app_meta', 'users_registry');
   try {
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-    const list = (Array.isArray(snap.data().list) ? snap.data().list : []).filter(x => x.id !== userId);
-    await setDoc(ref, { list, updatedAt: Date.now() });
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const list = (Array.isArray(snap.data().list) ? snap.data().list : []).filter(x => x.id !== userId);
+      tx.set(ref, { list, updatedAt: Date.now() });
+    });
   } catch (err) {
     console.warn("사용자 레지스트리 삭제 실패:", err);
   }
@@ -1343,14 +1349,18 @@ async function findUserById(id) {
 async function saveUserAccount(newUser) {
   updateLocalUserCache(newUser);
 
+  let cloudWriteOk = true;
   if (isFirebaseEnabled && db) {
     try {
       await setDoc(doc(db, 'users', newUser.id), newUser);
     } catch (err) {
+      cloudWriteOk = false;
       console.warn("Firebase saveUserAccount failed:", err);
     }
   }
-  await upsertUserRegistry(newUser);
+  // users/{id} 쓰기가 실패했으면 레지스트리에도 반영하지 않는다 — 그렇지 않으면
+  // 실제 계정 문서 없이 레지스트리에만 존재하는 "유령 계정"이 관리자 목록에 나타난다.
+  if (cloudWriteOk) await upsertUserRegistry(newUser);
 }
 
 // 11. LOGIN & USER MANAGEMENT MODULE
@@ -1411,13 +1421,16 @@ async function initAuth() {
     // Compare against the hash; fall back to plaintext for any legacy pre-hash accounts.
     const matchedUser = (candidate && (candidate.pw === hashedPw || candidate.pw === pw)) ? candidate : null;
     if (matchedUser) {
+      // 레지스트리에 없던 기존 계정(마이그레이션 이전 가입자)도 점진적으로 반영(비차단).
+      // 승인 대기 계정도 여기서 등록해야 관리자 목록에 나타나 승인할 수 있음 — approved 체크보다 먼저 실행.
+      upsertUserRegistry(matchedUser);
+
       // Check if account has been approved by admin
       if (matchedUser.approved === false) {
         showToast('승인 대기 중인 계정입니다. 관리자의 승인이 완료된 후 로그인이 가능합니다.', 'error');
         return;
       }
       authenticateUser(matchedUser);
-      upsertUserRegistry(matchedUser); // 레지스트리에 없던 기존 계정도 점진적으로 반영(비차단)
       showToast(`${matchedUser.name}님 환영합니다!`, 'success');
     } else {
       showToast('아이디 또는 비밀번호가 일치하지 않습니다.', 'error');
@@ -1531,9 +1544,6 @@ function authenticateUser(user, isSessionRestore = false) {
 
   const syncBtn = document.getElementById('btn-sync-school-infra');
 
-  // 운영기관(agency)은 열람 전용 — 모든 편집 UI 비활성화
-  applyReadOnly(user.role === 'agency');
-
   // Check authorization roles
   if (user.role === 'admin') {
     navAdminLi.classList.remove('hidden');
@@ -1553,7 +1563,12 @@ function authenticateUser(user, isSessionRestore = false) {
 
   // Load this user's specific records
   loadFromLocalStorage();
-  
+
+  // 운영기관(agency)은 열람 전용 — 모든 편집 UI 비활성화.
+  // loadFromLocalStorage()가 교원/계획 행 등을 동적으로 렌더링한 뒤에 걸어야
+  // 새로 생성된 입력 요소도 잠긴다.
+  applyReadOnly(user.role === 'agency');
+
   // Force canvas resizing inside restored view
   setTimeout(() => {
     const canvas = document.getElementById('signature-canvas');
@@ -1564,9 +1579,27 @@ function authenticateUser(user, isSessionRestore = false) {
 }
 
 // Toggle app-wide read-only mode for 운영기관(agency): 열람만 가능, 편집·저장 불가.
-// (버튼 숨김/입력 잠금은 CSS의 body.agency-readonly 규칙이 담당)
+// CSS(body.agency-readonly)는 마우스 클릭 차단 + 버튼 숨김을 담당하고,
+// 여기서는 input/textarea/select에 실제 readOnly/disabled를 걸어 Tab으로 포커스한 뒤
+// 키보드로 값을 바꾸는 것까지 막는다(pointer-events:none만으로는 키보드 입력을 막지 못함).
 function applyReadOnly(enabled) {
   document.body.classList.toggle('agency-readonly', enabled);
+  lockFormControls(document.getElementById('consult-form'), enabled);
+}
+
+// input/textarea는 readOnly(포커스·복사는 가능, 값 변경만 차단), select는 disabled로 잠근다.
+// checkbox/radio는 readOnly가 적용되지 않으므로(스펙상 무시됨) disabled로 잠가야 한다.
+// 학교 동기화 등으로 폼에 행이 새로 추가된 뒤에도 다시 호출해서 잠금을 유지해야 한다.
+function lockFormControls(root, enabled) {
+  if (!root) return;
+  root.querySelectorAll('input, textarea').forEach(el => {
+    if (el.type === 'checkbox' || el.type === 'radio') {
+      el.disabled = enabled;
+    } else {
+      el.readOnly = enabled;
+    }
+  });
+  root.querySelectorAll('select').forEach(el => { el.disabled = enabled; });
 }
 
 // Helper: Restrict UI navigation for school managers
@@ -1735,6 +1768,9 @@ function initSchoolSync() {
           applyInfraToDOM(state.infra);
         }
         
+        // 동기화로 새로 렌더링된 행(교원/계획 등)도 운영기관(agency)이면 다시 잠근다.
+        lockFormControls(document.getElementById('consult-form'), state.currentUser?.role === 'agency');
+
         triggerAutosave();
         showToast(`[${schoolName}] 담당자가 작성한 인프라·참여 교원·연수 참여 목표·모듈 구성·맞춤형 연수 기획 정보를 연동했습니다.`, 'success');
       } catch (err) {
