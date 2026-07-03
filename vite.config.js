@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/consult26/',
+  base: '/',
   build: {
     outDir: 'dist'
   }
