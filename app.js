@@ -739,6 +739,11 @@ function triggerAutosave() {
 function saveToLocalStorage() {
   if (!state.currentUser) return;
   if (state.currentUser.role === 'agency') return; // 운영기관은 열람 전용 — 저장 금지
+  // 학교명이 바뀌면 shared_infra의 저장 위치(문서 ID)도 바뀌므로, 변경 전 이름을
+  // 미리 기억해 두었다가 아래에서 예전 문서를 정리한다(방치 시 관리자가 옛 학교명으로
+  // 조회할 때 최신 데이터 대신 이 방치된 문서를 읽게 되어 "데이터가 안 불러와진다"는
+  // 증상으로 나타남).
+  const prevSchoolNameClean = state.infra.school_name ? state.infra.school_name.trim() : '';
   updateStateFromDOM();
 
   // 1. LocalStorage Backup (Immediate & Sync) — never persist the account password.
@@ -758,21 +763,33 @@ function saveToLocalStorage() {
     localStorage.setItem(`consult26_infra_${schoolNameClean}`, JSON.stringify(sharedSchoolData));
   }
 
+  const schoolNameChanged = state.currentUser.role === 'school'
+    && prevSchoolNameClean && schoolNameClean && prevSchoolNameClean !== schoolNameClean;
+  if (schoolNameChanged) {
+    localStorage.removeItem(`consult26_infra_${prevSchoolNameClean}`);
+  }
+
   // 2. Firebase Cloud Sync (Fire-and-forget, Non-blocking)
   if (isFirebaseEnabled && db) {
     const recordDocRef = doc(db, 'records', state.currentUser.id);
     setDoc(recordDocRef, persistState).catch(err => {
       console.warn("Firebase 클라우드 저장 거부/실패 (LocalStorage 백업 모드 가동 중):", err);
     });
-    
+
     if (sharedSchoolData) {
       const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
       setDoc(sharedDocRef, sharedSchoolData).catch(err => {
         console.warn("Firebase 공유 데이터 저장 거부/실패:", err);
       });
     }
+
+    if (schoolNameChanged) {
+      deleteDoc(doc(db, 'shared_infra', prevSchoolNameClean)).catch(err => {
+        console.warn("이전 학교명 공유 데이터 정리 실패:", err);
+      });
+    }
   }
-  
+
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
   document.getElementById('autosave-text').textContent = `자동 저장됨: ${timeStr}`;
