@@ -1621,12 +1621,41 @@ td select {
 
 /* Print Styling for clean PDF Export */
 @media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  /* 다크 모드 상태로 인쇄해도 항상 라이트 테마 색상으로 고정
+     (테마 변수를 그대로 두면 밝은 텍스트/어두운 배경이 흰 종이 위에 그대로 찍혀
+     글자가 안 보이거나 불필요하게 잉크가 많이 소모됨) */
   body {
+    /* !important은 필수: .light-theme/.dark-theme 클래스 선택자가 body 단독 선택자보다
+       구체성이 높아서, !important 없이는 테마 클래스 쪽 값이 계속 이김 */
+    --bg-primary: #ffffff !important;
+    --bg-secondary: #ffffff !important;
+    --bg-card: #ffffff !important;
+    --bg-card-hover: #ffffff !important;
+    --border-color: rgba(0, 0, 0, 0.15) !important;
+    --text-primary: #0f172a !important;
+    --text-secondary: #475569 !important;
+    --text-muted: #64748b !important;
+    --primary: #4f46e5 !important;
+    --primary-glow: rgba(79, 70, 229, 0.15) !important;
+    --secondary: #0891b2 !important;
+    --secondary-glow: rgba(8, 145, 178, 0.15) !important;
+    --success: #059669 !important;
+    --success-glow: rgba(5, 150, 105, 0.12) !important;
+    --warning: #d97706 !important;
+    --warning-glow: rgba(217, 119, 6, 0.12) !important;
+    --error: #dc2626 !important;
+    --error-glow: rgba(220, 38, 38, 0.12) !important;
+
     background-color: #fff !important;
     color: #000 !important;
     font-size: 11pt !important;
   }
-  
+
   .bg-decorations,
   .sidebar,
   .system-actions,
@@ -1638,6 +1667,7 @@ td select {
   .toast,
   .canvas-placeholder,
   .module-control,
+  #section-admin,
   th:last-child,
   td:last-child {
     display: none !important;

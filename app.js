@@ -1,34 +1,28 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getFirestore, doc, setDoc, getDoc, deleteDoc, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ==========================================
-// 🔥 FIREBASE SYSTEM CONFIGURATION
+// ⚡ SUPABASE SYSTEM CONFIGURATION
 // ==========================================
-// 💡 실제 클라우드 데이터 관리를 위해 아래 객체에 본인의 Firebase 프로젝트 Web App Config 값을 채워 넣어 주세요.
-// 💡 config 값을 채우지 않거나 기본값 상태일 경우, 기존의 브라우저 LocalStorage 백업 모드로 자동 전환(Fallback)되어 안전하게 작동합니다.
-const firebaseConfig = {
-  apiKey: "AIzaSyCVuYFWyM_lP2jZxnETIUDuMkPR5P63dQM",
-  authDomain: "consult26-2bc69.firebaseapp.com",
-  projectId: "consult26-2bc69",
-  storageBucket: "consult26-2bc69.firebasestorage.app",
-  messagingSenderId: "827757418469",
-  appId: "1:827757418469:web:6a5d9b55224f8afdd1810c"
+// 💡 실제 클라우드 데이터 관리를 위해 아래 값에 본인의 Supabase 프로젝트 URL / anon(publishable) key를 채워 넣어 주세요.
+// 💡 값을 채우지 않거나 기본값 상태일 경우, 기존의 브라우저 LocalStorage 백업 모드로 자동 전환(Fallback)되어 안전하게 작동합니다.
+const supabaseConfig = {
+  url: "https://gdpqxfzynrpadznnilir.supabase.co",
+  anonKey: "sb_publishable_yGhM2c2JaKWprFH0cd9Ajw_HDhwgd-p"
 };
 
-let db = null;
-let isFirebaseEnabled = false;
+let supabase = null;
+let isSupabaseEnabled = false;
 
-if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY") {
+if (supabaseConfig.url && supabaseConfig.anonKey && supabaseConfig.anonKey !== "YOUR_SUPABASE_ANON_KEY") {
   try {
-    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    isFirebaseEnabled = true;
-    console.log("⚡ Firebase Firestore 클라우드 데이터베이스가 연결되었습니다.");
+    supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+    isSupabaseEnabled = true;
+    console.log("⚡ Supabase 클라우드 데이터베이스가 연결되었습니다.");
   } catch (err) {
-    console.error("❌ Firebase 초기화 실패. LocalStorage 백업 모드로 가동합니다:", err);
+    console.error("❌ Supabase 초기화 실패. LocalStorage 백업 모드로 가동합니다:", err);
   }
 } else {
-  console.log("ℹ️ Firebase Config 미제공. 브라우저 로컬 스토리지(LocalStorage) 모드로 안전 가동 중입니다.");
+  console.log("ℹ️ Supabase Config 미제공. 브라우저 로컬 스토리지(LocalStorage) 모드로 안전 가동 중입니다.");
 }
 
 // Application State Management
@@ -138,6 +132,16 @@ const userDisplayName = document.getElementById('user-display-name');
 const userDisplayRole = document.getElementById('user-display-role');
 const navAdminLi = document.getElementById('nav-admin-li');
 
+// Password change/reset modal DOM references
+const btnChangePassword = document.getElementById('btn-change-password');
+const passwordModal = document.getElementById('password-modal');
+const passwordModalForm = document.getElementById('password-modal-form');
+const passwordModalTitle = document.getElementById('password-modal-title');
+const passwordModalDesc = document.getElementById('password-modal-desc');
+const passwordModalCancel = document.getElementById('password-modal-cancel');
+const currentPasswordGroup = document.getElementById('current-password-group');
+let passwordModalTargetUserId = null; // set when opened in admin-reset mode
+
 // Autosave Timer
 let autosaveTimeout = null;
 
@@ -157,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSignaturePad();
   initAutosave();
   initAuth(); // Setup login and signup logic
+  initPasswordModal(); // Setup self password change / admin password reset modal
   initSchoolSync(); // Bind school manager data remote sync button
 
   // Bind School Manager explicit Save & Submit completed button
@@ -769,23 +774,26 @@ function saveToLocalStorage() {
     localStorage.removeItem(`consult26_infra_${prevSchoolNameClean}`);
   }
 
-  // 2. Firebase Cloud Sync (Fire-and-forget, Non-blocking)
-  if (isFirebaseEnabled && db) {
-    const recordDocRef = doc(db, 'records', state.currentUser.id);
-    setDoc(recordDocRef, persistState).catch(err => {
-      console.warn("Firebase 클라우드 저장 거부/실패 (LocalStorage 백업 모드 가동 중):", err);
+  // 2. Supabase Cloud Sync (Fire-and-forget, Non-blocking)
+  if (isSupabaseEnabled && supabase) {
+    supabase.rpc('upsert_record', {
+      p_user_id: state.currentUser.id,
+      p_data: persistState,
+      p_updated_at: persistState.updatedAt
+    }).then(({ error }) => {
+      if (error) console.warn("Supabase 클라우드 저장 거부/실패 (LocalStorage 백업 모드 가동 중):", error);
     });
 
     if (sharedSchoolData) {
-      const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
-      setDoc(sharedDocRef, sharedSchoolData).catch(err => {
-        console.warn("Firebase 공유 데이터 저장 거부/실패:", err);
-      });
+      supabase.rpc('upsert_shared_infra', { p_school_name: schoolNameClean, p_data: sharedSchoolData })
+        .then(({ error }) => {
+          if (error) console.warn("Supabase 공유 데이터 저장 거부/실패:", error);
+        });
     }
 
     if (schoolNameChanged) {
-      deleteDoc(doc(db, 'shared_infra', prevSchoolNameClean)).catch(err => {
-        console.warn("이전 학교명 공유 데이터 정리 실패:", err);
+      supabase.rpc('delete_shared_infra', { p_school_name: prevSchoolNameClean }).then(({ error }) => {
+        if (error) console.warn("이전 학교명 공유 데이터 정리 실패:", error);
       });
     }
   }
@@ -844,14 +852,12 @@ async function loadFromLocalStorage() {
     addPlanningRow({ moduleNum: 7, hours: 1 });
   }
 
-  // 3. Load from Firebase Cloud in the background
-  if (isFirebaseEnabled && db) {
+  // 3. Load from Supabase Cloud in the background
+  if (isSupabaseEnabled && supabase) {
     try {
-      const recordDocRef = doc(db, 'records', state.currentUser.id);
-      const docSnap = await getDoc(recordDocRef);
-      if (docSnap.exists()) {
-        const cloudState = docSnap.data();
-        
+      const { data: cloudState, error } = await supabase.rpc('get_record', { p_user_id: state.currentUser.id });
+      if (error) throw error;
+      if (cloudState) {
         if (!localState) {
           // 로컬 스토리지에 데이터가 아예 없는 경우 -> 클라우드 데이터로 화면 복원
           applyStateToDOM(cloudState);
@@ -874,8 +880,12 @@ async function loadFromLocalStorage() {
               localState.updatedAt = Date.now();
               localStorage.setItem(`consult26_record_${state.currentUser.id}`, JSON.stringify(localState));
             }
-            await setDoc(recordDocRef, localState);
-            
+            await supabase.rpc('upsert_record', {
+              p_user_id: state.currentUser.id,
+              p_data: localState,
+              p_updated_at: localState.updatedAt
+            });
+
             // sharedSchoolData 동기화도 실행
             const schoolNameClean = localState.infra.school_name ? localState.infra.school_name.trim() : '';
             const sharedSchoolData = (localState.currentUser.role === 'school' && schoolNameClean) ? {
@@ -886,14 +896,13 @@ async function loadFromLocalStorage() {
               planning: localState.planning
             } : null;
             if (sharedSchoolData) {
-              const sharedDocRef = doc(db, 'shared_infra', schoolNameClean);
-              await setDoc(sharedDocRef, sharedSchoolData);
+              await supabase.rpc('upsert_shared_infra', { p_school_name: schoolNameClean, p_data: sharedSchoolData });
             }
           }
         }
       }
     } catch (err) {
-      console.warn("Firestore 규칙 미비 또는 권한 부족으로 클라우드 데이터를 가져오지 못했습니다. 로컬 저장을 계속 사용합니다:", err);
+      console.warn("Supabase 권한 미비 또는 접속 문제로 클라우드 데이터를 가져오지 못했습니다. 로컬 저장을 계속 사용합니다:", err);
     }
   }
 }
@@ -1284,75 +1293,32 @@ btnPrint.addEventListener('click', () => {
 });
 
 // 11. LOGIN & USER MANAGEMENT MODULE
-// Helper: Fetch all users from cloud or local storage fallback
+// Helper: Fetch all users (id/name/role/approved/date, no password) from cloud or local storage fallback
 async function fetchAllUsers() {
-  // 관리자 목록은 컬렉션 list 대신 단일 레지스트리 문서(비밀번호 미포함)를 읽는다.
-  // → 규칙에서 users list를 차단해도 동작하며, 전체 사용자 목록/비밀번호가 노출되지 않음.
-  if (isFirebaseEnabled && db) {
+  if (isSupabaseEnabled && supabase) {
     try {
-      const snap = await getDoc(doc(db, 'app_meta', 'users_registry'));
-      if (snap.exists() && Array.isArray(snap.data().list)) return snap.data().list;
+      const { data, error } = await supabase.rpc('list_users');
+      if (error) throw error;
+      if (Array.isArray(data)) return data.map(u => ({ ...u, date: u.joined_date }));
     } catch (err) {
-      console.warn("Firebase 사용자 레지스트리 조회 실패, LocalStorage로 대체:", err);
+      console.warn("Supabase 사용자 목록 조회 실패, LocalStorage로 대체:", err);
     }
   }
   return JSON.parse(localStorage.getItem('consult26_users')) || [];
 }
 
-// Registry helpers: keep a single world-readable summary doc (no passwords) so the
-// admin screen can enumerate accounts without listing the users collection.
-function summarizeUser(u) {
-  return {
-    id: u.id,
-    name: u.name || '',
-    role: u.role || 'user',
-    approved: u.approved === true,
-    date: u.date || '-'
-  };
-}
-
-// 여러 사용자가 동시에 로그인/가입/승인해도 read-modify-write가 서로 덮어쓰지 않도록
-// 트랜잭션으로 묶어서 처리(마지막에 읽은 스냅샷 기준으로만 갱신됨을 Firestore가 보장).
-async function upsertUserRegistry(user) {
-  if (!(isFirebaseEnabled && db)) return;
-  const ref = doc(db, 'app_meta', 'users_registry');
-  try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(ref);
-      let list = (snap.exists() && Array.isArray(snap.data().list)) ? snap.data().list : [];
-      const idx = list.findIndex(x => x.id === user.id);
-      const summary = summarizeUser(user);
-      if (idx >= 0) list[idx] = summary; else list.push(summary);
-      tx.set(ref, { list, updatedAt: Date.now() });
-    });
-  } catch (err) {
-    console.warn("사용자 레지스트리 업데이트 실패:", err);
-  }
-}
-
-async function removeUserRegistry(userId) {
-  if (!(isFirebaseEnabled && db)) return;
-  const ref = doc(db, 'app_meta', 'users_registry');
-  try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(ref);
-      if (!snap.exists()) return;
-      const list = (Array.isArray(snap.data().list) ? snap.data().list : []).filter(x => x.id !== userId);
-      tx.set(ref, { list, updatedAt: Date.now() });
-    });
-  } catch (err) {
-    console.warn("사용자 레지스트리 삭제 실패:", err);
-  }
-}
-
-// Helper: Fetch a single user by id (cloud single-doc read first, then LocalStorage).
-// Used for login/signup/seeding so the whole users collection never needs to be listed
-// — better privacy (no bulk exposure) and works even if `list` is disabled in rules.
+// Helper: Fetch a single user by id (cloud single-row read first, then LocalStorage).
+// Used for login/signup duplicate-check/admin actions — Supabase의 get_user RPC는
+// Firestore의 "get: true / list: false" 규칙과 동일한 수준(단건 조회만 허용)으로 동작.
 async function findUserById(id) {
-  if (isFirebaseEnabled && db) {
+  if (isSupabaseEnabled && supabase) {
     try {
-      const snap = await getDoc(doc(db, 'users', id));
-      if (snap.exists()) return snap.data();
+      const { data, error } = await supabase.rpc('get_user', { p_id: id });
+      if (error) throw error;
+      if (Array.isArray(data) && data.length > 0) {
+        const row = data[0];
+        return { id: row.id, name: row.name, pw: row.password_hash, role: row.role, approved: row.approved, date: row.joined_date };
+      }
       // Not in cloud → fall through to LocalStorage (legacy local-only account)
     } catch (err) {
       console.warn("findUserById 클라우드 조회 실패, LocalStorage로 대체:", err);
@@ -1362,56 +1328,9 @@ async function findUserById(id) {
   return localUsers.find(u => u.id === id) || null;
 }
 
-// Helper: Save single user account to cloud & local storage (+ registry summary)
-async function saveUserAccount(newUser) {
-  updateLocalUserCache(newUser);
-
-  let cloudWriteOk = true;
-  if (isFirebaseEnabled && db) {
-    try {
-      await setDoc(doc(db, 'users', newUser.id), newUser);
-    } catch (err) {
-      cloudWriteOk = false;
-      console.warn("Firebase saveUserAccount failed:", err);
-    }
-  }
-  // users/{id} 쓰기가 실패했으면 레지스트리에도 반영하지 않는다 — 그렇지 않으면
-  // 실제 계정 문서 없이 레지스트리에만 존재하는 "유령 계정"이 관리자 목록에 나타난다.
-  if (cloudWriteOk) await upsertUserRegistry(newUser);
-}
-
-// 11. LOGIN & USER MANAGEMENT MODULE
 async function initAuth() {
-  // Ensure default accounts are seeded (Admin and School Manager) — single-doc lookups
-  const adminUser = await findUserById('admin');
-  const schoolUser = await findUserById('school');
-
-  if (!adminUser) {
-    await saveUserAccount({
-      id: 'admin',
-      name: '시스템 관리자',
-      pw: await hashPassword('admin123'),
-      role: 'admin',
-      date: new Date().toLocaleDateString(),
-      approved: true
-    });
-  } else {
-    // 이미 존재하는 계정도 레지스트리에 반영(레지스트리 최초 도입 시 마이그레이션)
-    await upsertUserRegistry(adminUser);
-  }
-
-  if (!schoolUser) {
-    await saveUserAccount({
-      id: 'school',
-      name: '신성초 담당자',
-      pw: await hashPassword('school123'),
-      role: 'school',
-      date: new Date().toLocaleDateString(),
-      approved: true
-    });
-  } else {
-    await upsertUserRegistry(schoolUser);
-  }
+  // 기본 계정(admin/school) 시딩은 Supabase 마이그레이션(SQL)에서 처리되므로
+  // 앱 로드 시점에 별도로 만들 필요가 없다.
 
   // Switch between forms
   goToSignup.addEventListener('click', (e) => {
@@ -1438,10 +1357,6 @@ async function initAuth() {
     // Compare against the hash; fall back to plaintext for any legacy pre-hash accounts.
     const matchedUser = (candidate && (candidate.pw === hashedPw || candidate.pw === pw)) ? candidate : null;
     if (matchedUser) {
-      // 레지스트리에 없던 기존 계정(마이그레이션 이전 가입자)도 점진적으로 반영(비차단).
-      // 승인 대기 계정도 여기서 등록해야 관리자 목록에 나타나 승인할 수 있음 — approved 체크보다 먼저 실행.
-      upsertUserRegistry(matchedUser);
-
       // Check if account has been approved by admin
       if (matchedUser.approved === false) {
         showToast('승인 대기 중인 계정입니다. 관리자의 승인이 완료된 후 로그인이 가능합니다.', 'error');
@@ -1473,16 +1388,24 @@ async function initAuth() {
       return;
     }
 
+    const pwHash = await hashPassword(pw); // Never store the plaintext password
     const newUser = {
       id,
       name,
-      pw: await hashPassword(pw), // Never store the plaintext password
+      pw: pwHash,
       role,
       date: new Date().toLocaleDateString(),
       approved: false // Newly registered users default to pending approval status
     };
-    
-    await saveUserAccount(newUser);
+
+    if (isSupabaseEnabled && supabase) {
+      const { error } = await supabase.rpc('signup_user', { p_id: id, p_name: name, p_password_hash: pwHash, p_role: role });
+      if (error) {
+        showToast('이미 사용 중인 아이디이거나 가입 처리 중 오류가 발생했습니다.', 'error');
+        return;
+      }
+    }
+    updateLocalUserCache(newUser);
     showToast('회원가입 신청이 완료되었습니다! 관리자 승인 완료 후 이용 가능합니다.', 'success');
     
     // Switch to login
@@ -1537,6 +1460,106 @@ async function initAuth() {
       sessionStorage.removeItem('consult26_session');
     }
   }
+}
+
+// 12. PASSWORD CHANGE / RESET MODAL
+// mode: 'self' (로그인한 본인이 현재 비밀번호를 확인하고 변경) or
+//       'admin-reset' (관리자가 targetUserId 계정의 비밀번호를 현재 비밀번호 확인 없이 강제로 재설정)
+function openPasswordModal(mode, targetUserId = null) {
+  passwordModalForm.reset();
+  passwordModalTargetUserId = mode === 'admin-reset' ? targetUserId : null;
+
+  if (mode === 'admin-reset') {
+    passwordModalTitle.textContent = '비밀번호 재설정';
+    passwordModalDesc.textContent = `[${targetUserId}] 계정의 비밀번호를 관리자 권한으로 새 값으로 재설정합니다.`;
+    currentPasswordGroup.classList.add('hidden');
+  } else {
+    passwordModalTitle.textContent = '비밀번호 변경';
+    passwordModalDesc.textContent = '현재 비밀번호를 확인한 후 새 비밀번호로 변경합니다.';
+    currentPasswordGroup.classList.remove('hidden');
+  }
+
+  passwordModal.classList.remove('hidden');
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function closePasswordModal() {
+  passwordModal.classList.add('hidden');
+  passwordModalTargetUserId = null;
+  passwordModalForm.reset();
+}
+
+function initPasswordModal() {
+  btnChangePassword.addEventListener('click', () => openPasswordModal('self'));
+  passwordModalCancel.addEventListener('click', (e) => {
+    e.preventDefault();
+    closePasswordModal();
+  });
+
+  passwordModalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const isAdminReset = !!passwordModalTargetUserId;
+    const newPw = document.getElementById('pw-modal-new').value;
+    const confirmPw = document.getElementById('pw-modal-confirm').value;
+
+    if (newPw.length < 6) {
+      showToast('새 비밀번호는 최소 6자리 이상이어야 합니다.', 'error');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      showToast('새 비밀번호가 서로 일치하지 않습니다.', 'error');
+      return;
+    }
+
+    const newPwHash = await hashPassword(newPw);
+
+    if (isAdminReset) {
+      const targetId = passwordModalTargetUserId;
+      if (isSupabaseEnabled && supabase) {
+        const { error } = await supabase.rpc('admin_reset_password', { p_id: targetId, p_new_password_hash: newPwHash });
+        if (error) {
+          showToast('비밀번호 재설정 중 오류가 발생했습니다.', 'error');
+          return;
+        }
+      }
+      const localUser = await findUserById(targetId);
+      if (localUser) updateLocalUserCache({ ...localUser, pw: newPwHash });
+      showToast(`[${targetId}] 계정의 비밀번호가 재설정되었습니다.`, 'success');
+    } else {
+      const currentPw = document.getElementById('pw-modal-current').value;
+      const currentPwHash = await hashPassword(currentPw);
+
+      if (isSupabaseEnabled && supabase) {
+        const { data: matched, error } = await supabase.rpc('change_password', {
+          p_id: state.currentUser.id,
+          p_current_password_hash: currentPwHash,
+          p_new_password_hash: newPwHash
+        });
+        if (error) {
+          showToast('비밀번호 변경 중 오류가 발생했습니다.', 'error');
+          return;
+        }
+        if (!matched) {
+          showToast('현재 비밀번호가 일치하지 않습니다.', 'error');
+          return;
+        }
+      } else {
+        // LocalStorage-only fallback: verify current password against the cached copy.
+        const localUser = await findUserById(state.currentUser.id);
+        if (!localUser || (localUser.pw !== currentPwHash && localUser.pw !== currentPw)) {
+          showToast('현재 비밀번호가 일치하지 않습니다.', 'error');
+          return;
+        }
+      }
+
+      state.currentUser.pw = newPwHash;
+      sessionStorage.setItem('consult26_session', JSON.stringify(state.currentUser));
+      updateLocalUserCache({ ...state.currentUser, pw: newPwHash });
+      showToast('비밀번호가 변경되었습니다.', 'success');
+    }
+
+    closePasswordModal();
+  });
 }
 
 // Authenticate user, reveal dashboard, and load specialized record data
@@ -1725,20 +1748,20 @@ function initSchoolSync() {
     let parsedData = null;
     let cloudError = null;
 
-    // 1. Load from Firebase Cloud DB
-    if (isFirebaseEnabled && db) {
+    // 1. Load from Supabase Cloud DB
+    if (isSupabaseEnabled && supabase) {
       try {
-        const sharedDocRef = doc(db, 'shared_infra', schoolName);
-        const docSnap = await getDoc(sharedDocRef);
-        if (docSnap.exists()) {
-          parsedData = docSnap.data();
-          console.log(`⚡ Firebase 클라우드에서 [${schoolName}] 공유 데이터를 연동했습니다.`);
+        const { data, error } = await supabase.rpc('get_shared_infra', { p_school_name: schoolName });
+        if (error) throw error;
+        if (data) {
+          parsedData = data;
+          console.log(`⚡ Supabase 클라우드에서 [${schoolName}] 공유 데이터를 연동했습니다.`);
         } else {
-          console.log(`ℹ️ 클라우드에 shared_infra/${schoolName} 문서가 없습니다.`);
+          console.log(`ℹ️ 클라우드에 shared_infra/${schoolName} 데이터가 없습니다.`);
         }
       } catch (err) {
         cloudError = err;
-        console.warn("Firebase 원격 학교 정보 연동 실패, 로컬 캐시를 조회합니다:", err);
+        console.warn("Supabase 원격 학교 정보 연동 실패, 로컬 캐시를 조회합니다:", err);
       }
     }
 
@@ -1796,9 +1819,9 @@ function initSchoolSync() {
     } else if (cloudError) {
       // Distinguish a cloud access failure (rules not deployed / permission denied)
       // from a genuine "no data" case so the cause is obvious.
-      const denied = cloudError.code === 'permission-denied' || /permission/i.test(cloudError.message || '');
+      const denied = /permission|rls|policy/i.test(cloudError.message || '');
       if (denied) {
-        showToast('클라우드 접근 권한이 거부되었습니다. Firestore 보안 규칙 배포 상태를 확인해 주세요. (firebase deploy --only firestore:rules)', 'error');
+        showToast('클라우드 접근 권한이 거부되었습니다. Supabase 프로젝트의 RPC 함수/권한 설정 상태를 확인해 주세요.', 'error');
       } else {
         showToast('클라우드 연결에 실패했습니다. 네트워크 상태를 확인해 주세요.', 'error');
       }
@@ -1958,10 +1981,13 @@ async function renderAdminUserManagement() {
         ${approvalBtn}
       </td>
       <td class="text-center">
+        <button type="button" class="btn btn-small btn-outline btn-reset-password" data-user-id="${safeId}"><i data-lucide="key-round"></i> 재설정</button>
+      </td>
+      <td class="text-center">
         <button type="button" class="btn btn-small btn-danger btn-delete-user" data-user-id="${safeId}" ${u.id === 'admin' ? 'disabled' : ''}><i data-lucide="user-x"></i> 삭제</button>
       </td>
     `;
-    
+
     // Wire delete event
     const btnDel = tr.querySelector('.btn-delete-user');
     if (btnDel) {
@@ -1981,6 +2007,14 @@ async function renderAdminUserManagement() {
       });
     }
 
+    // Wire password reset event
+    const btnResetPw = tr.querySelector('.btn-reset-password');
+    if (btnResetPw) {
+      btnResetPw.addEventListener('click', () => {
+        openPasswordModal('admin-reset', u.id);
+      });
+    }
+
     tbody.appendChild(tr);
   });
   
@@ -1988,8 +2022,6 @@ async function renderAdminUserManagement() {
 }
 
 async function toggleUserApproval(userId) {
-  // Fetch the FULL user doc (incl. hashed password) so we don't overwrite it with a
-  // registry summary that has no password.
   const user = await findUserById(userId);
   if (!user) {
     showToast('해당 계정을 찾을 수 없습니다. 목록을 새로고침해 주세요.', 'error');
@@ -1998,15 +2030,15 @@ async function toggleUserApproval(userId) {
 
   user.approved = !user.approved;
 
-  if (isFirebaseEnabled && db) {
+  if (isSupabaseEnabled && supabase) {
     try {
-      await setDoc(doc(db, 'users', userId), user);
+      const { error } = await supabase.rpc('set_user_approval', { p_id: userId, p_approved: user.approved });
+      if (error) throw error;
     } catch (err) {
-      console.warn("Firebase toggleUserApproval failed:", err);
+      console.warn("Supabase toggleUserApproval failed:", err);
     }
   }
   updateLocalUserCache(user);
-  await upsertUserRegistry(user);
 
   const message = user.approved ? `[${userId}] 계정의 가입 권한이 승인되었습니다.` : `[${userId}] 계정의 승인이 취소되었습니다.`;
   showToast(message, 'success');
@@ -2015,12 +2047,13 @@ async function toggleUserApproval(userId) {
 
 async function deleteUserAccount(userId) {
   // Remove from cloud first so deletions propagate regardless of local cache state.
-  if (isFirebaseEnabled && db) {
+  // records는 users FK의 on delete cascade로 함께 삭제된다.
+  if (isSupabaseEnabled && supabase) {
     try {
-      await deleteDoc(doc(db, 'users', userId));
-      await deleteDoc(doc(db, 'records', userId));
+      const { error } = await supabase.rpc('delete_user', { p_id: userId });
+      if (error) throw error;
     } catch (err) {
-      console.warn("Firebase deleteUserAccount failed:", err);
+      console.warn("Supabase deleteUserAccount failed:", err);
     }
   }
 
@@ -2028,8 +2061,6 @@ async function deleteUserAccount(userId) {
   users = users.filter(u => u.id !== userId);
   localStorage.setItem('consult26_users', JSON.stringify(users));
   localStorage.removeItem(`consult26_record_${userId}`);
-
-  await removeUserRegistry(userId);
 
   showToast(`계정 [ ${userId} ] 이 정상 삭제되었습니다.`, 'success');
   await renderAdminUserManagement();

@@ -95,6 +95,42 @@
     </div>
   </div>
 
+  <!-- Change / Reset Password Modal (self-service change, or admin reset for another account) -->
+  <div id="password-modal" class="auth-overlay hidden">
+    <div class="auth-card glass-panel">
+      <div class="auth-header">
+        <div class="logo-icon big"><i data-lucide="key-round"></i></div>
+        <h2 id="password-modal-title">비밀번호 변경</h2>
+        <p id="password-modal-desc">현재 비밀번호를 확인한 후 새 비밀번호로 변경합니다.</p>
+      </div>
+      <form id="password-modal-form" class="auth-form">
+        <div class="form-group" id="current-password-group">
+          <label for="pw-modal-current">현재 비밀번호</label>
+          <div class="input-icon-wrapper">
+            <i data-lucide="lock"></i>
+            <input type="password" id="pw-modal-current" placeholder="현재 비밀번호를 입력하세요">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="pw-modal-new">새 비밀번호</label>
+          <div class="input-icon-wrapper">
+            <i data-lucide="lock"></i>
+            <input type="password" id="pw-modal-new" required placeholder="6자리 이상 새 비밀번호">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="pw-modal-confirm">새 비밀번호 확인</label>
+          <div class="input-icon-wrapper">
+            <i data-lucide="lock"></i>
+            <input type="password" id="pw-modal-confirm" required placeholder="새 비밀번호를 다시 입력하세요">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full margin-top-md">변경하기</button>
+        <p class="auth-switch-text"><a href="#" id="password-modal-cancel">취소</a></p>
+      </form>
+    </div>
+  </div>
+
   <!-- Dynamic Background Particles (CSS animated) -->
   <div class="bg-decorations">
     <div class="circle circle-1"></div>
@@ -122,6 +158,7 @@
           <span id="user-display-name">홍길동 코디네이터</span>
           <span id="user-display-role" class="user-role-tag">일반 회원</span>
         </div>
+        <button id="btn-change-password" title="비밀번호 변경"><i data-lucide="key-round"></i></button>
         <button id="btn-logout" title="로그아웃"><i data-lucide="log-out"></i></button>
       </div>
 
@@ -1144,6 +1181,7 @@
                     <th>승인 상태</th>
                     <th>가입 일자</th>
                     <th style="width: 140px;" class="text-center">가입 권한 승인</th>
+                    <th style="width: 120px;" class="text-center">비밀번호 재설정</th>
                     <th style="width: 100px;" class="text-center">계정 삭제</th>
                   </tr>
                 </thead>
